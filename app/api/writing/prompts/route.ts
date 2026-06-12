@@ -1,0 +1,74 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient, WritingPromptType, ProficiencyLevel } from '@/app/generated/prisma';
+import { getCurrentUserFromRequest } from '@/lib/auth';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type') as WritingPromptType | null;
+    const level = searchParams.get('level') as ProficiencyLevel | null;
+    const limit = parseInt(searchParams.get('limit') || '10');
+
+    // Build filter
+    const where: any = { isActive: true };
+    if (type) where.type = type;
+    if (level) where.level = level;
+
+    // Get prompts
+    const prompts = await prisma.writingPrompt.findMany({
+      where,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get user's submission count for each prompt
+    const promptIds = prompts.map((p) => p.id);
+    const submissions = await prisma.writingSubmission.findMany({
+      where: {
+        userId: user.id,
+        promptId: { in: promptIds },
+      },
+      select: {
+        promptId: true,
+        id: true,
+      },
+    });
+
+    const submissionMap = new Map<string, number>();
+    submissions.forEach((s) => {
+      submissionMap.set(s.promptId, (submissionMap.get(s.promptId) || 0) + 1);
+    });
+
+    const promptsWithStats = prompts.map((prompt) => ({
+      id: prompt.id,
+      title: prompt.title,
+      promptText: prompt.promptText,
+      type: prompt.type,
+      level: prompt.level,
+      wordCountMin: prompt.wordCountMin,
+      wordCountMax: prompt.wordCountMax,
+      submissionCount: submissionMap.get(prompt.id) || 0,
+    }));
+
+    return NextResponse.json(
+      {
+        prompts: promptsWithStats,
+        total: prompts.length,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Get writing prompts error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
