@@ -2,9 +2,10 @@ import { compare, hash } from 'bcryptjs';
 import { sign, verify } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
-import { PrismaClient, UserRole } from '@/app/generated/prisma';
+import { UserRole } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -25,6 +26,7 @@ export interface AuthUser {
   fullName: string;
   major?: string | null;
   cohort?: string | null;
+  hasModuleAccess: boolean;
 }
 
 /**
@@ -45,7 +47,7 @@ export async function verifyPassword(password: string, hashedPassword: string): 
  * Generate a JWT token for a user
  */
 export function generateToken(payload: JWTPayload): string {
-  return sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return sign(payload as object, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
 }
 
 /**
@@ -118,6 +120,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         fullName: true,
         major: true,
         cohort: true,
+        hasModuleAccess: true,
       },
     });
 
@@ -147,6 +150,7 @@ export async function getCurrentUserFromRequest(request: NextRequest): Promise<A
         fullName: true,
         major: true,
         cohort: true,
+        hasModuleAccess: true,
       },
     });
 

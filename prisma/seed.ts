@@ -1,13 +1,6 @@
-import { PrismaClient } from '../app/generated/prisma';
-import {
-  vocabularyQuestions,
-  grammarQuestions,
-  readingQuestions,
-  writingPrompts,
-  speakingPrompts,
-} from '../lib/questions';
-
-const prisma = new PrismaClient();
+import 'dotenv/config';
+import prisma from '../lib/prisma';
+import { vocabularyQuestions, grammarQuestions, readingQuestions, writingPrompts, speakingPrompts } from '../lib/questions';
 
 async function main() {
   console.log('🌱 Starting database seed...');
