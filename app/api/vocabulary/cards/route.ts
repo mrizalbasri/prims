@@ -1,14 +1,19 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, VocabularyCategory, QuestionDifficulty } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Akses modul terkunci. Butuh token dosen.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -29,7 +34,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get user's progress for these cards
-    const cardIds = cards.map((c) => c.id);
+    const cardIds = cards.map((c: any) => c.id);
     const progress = await prisma.vocabularyProgress.findMany({
       where: {
         userId: user.id,
@@ -37,11 +42,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const progressMap = new Map(progress.map((p) => [p.cardId, p]));
+    const progressMap = new Map(progress.map((p: any) => [p.cardId, p]));
 
     // Combine cards with progress
-    const cardsWithProgress = cards.map((card) => {
-      const userProgress = progressMap.get(card.id);
+    const cardsWithProgress = cards.map((card: any) => {
+      const userProgress: any = progressMap.get(card.id);
       return {
         id: card.id,
         term: card.term,

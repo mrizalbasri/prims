@@ -1,14 +1,19 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, WritingPromptType, ProficiencyLevel } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus, WritingPromptType, ProficiencyLevel } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Akses modul terkunci. Butuh token dosen.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -29,7 +34,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get user's submission count for each prompt
-    const promptIds = prompts.map((p) => p.id);
+    const promptIds = prompts.map((p: any) => p.id);
     const submissions = await prisma.writingSubmission.findMany({
       where: {
         userId: user.id,
@@ -42,11 +47,11 @@ export async function GET(request: NextRequest) {
     });
 
     const submissionMap = new Map<string, number>();
-    submissions.forEach((s) => {
+    submissions.forEach((s: any) => {
       submissionMap.set(s.promptId, (submissionMap.get(s.promptId) || 0) + 1);
     });
 
-    const promptsWithStats = prompts.map((prompt) => ({
+    const promptsWithStats = prompts.map((prompt: any) => ({
       id: prompt.id,
       title: prompt.title,
       promptText: prompt.promptText,

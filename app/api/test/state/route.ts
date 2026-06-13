@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate progress for each section
-    const sectionProgress = testAttempt.sectionAttempts.map((section) => {
+    const sectionProgress = testAttempt.sectionAttempts.map((section: any) => {
       let answeredCount = 0;
       let totalQuestions = 0;
 

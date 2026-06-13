@@ -1,9 +1,11 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, ResponseStatus } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI } from '@/lib/scoring';
 
-const prisma = new PrismaClient();
+
 
 export async function POST(request: NextRequest) {
   try {

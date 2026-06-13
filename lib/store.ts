@@ -7,6 +7,7 @@ import type {
   UserRole,
 } from "@/lib/types";
 import { SECTION_ORDER } from "@/lib/questions";
+import { SectionType } from "@prisma/client";
 
 type Store = {
   users: User[];
@@ -178,7 +179,7 @@ export function createAttempt(userId: string): TestAttempt {
     id: makeId("attempt"),
     userId,
     status: "in_progress",
-    currentSection: SECTION_ORDER[0],
+    currentSection: SECTION_ORDER[0] as any,
     startedAt: new Date().toISOString(),
     answers: {},
   };
@@ -212,7 +213,7 @@ export function saveAttempt(input: {
   }
 
   if (input.currentSection) {
-    attempt.currentSection = input.currentSection;
+    attempt.currentSection = input.currentSection as any;
   }
 
   return attempt;

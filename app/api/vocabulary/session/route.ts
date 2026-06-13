@@ -1,9 +1,11 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { getVocabularyStats } from '@/lib/vocabulary';
 
-const prisma = new PrismaClient();
+
 
 // POST: Start a new vocabulary session
 export async function POST(request: NextRequest) {
@@ -169,7 +171,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         stats,
-        recentSessions: recentSessions.map((s) => ({
+        recentSessions: recentSessions.map((s: any) => ({
           id: s.id,
           cardsReviewed: s.cardsReviewed,
           cardsLearned: s.cardsLearned,

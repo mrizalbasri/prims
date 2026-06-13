@@ -1,4 +1,4 @@
-import { SectionType, QuestionDifficulty } from '@/app/generated/prisma';
+import { SectionType, QuestionDifficulty } from '@prisma/client';
 
 /**
  * Question bank structure for objective sections
@@ -387,8 +387,11 @@ export function getRandomQuestions(
 /**
  * Get random prompt for writing or speaking
  */
-export function getRandomPrompt(sectionType: SectionType.WRITING | SectionType.SPEAKING): PromptData | null {
+export function getRandomPrompt(sectionType: SectionType): PromptData | null {
   const pool = sectionType === SectionType.WRITING ? writingPrompts : speakingPrompts;
   if (pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+export const SECTION_ORDER = [SectionType.VOCABULARY, SectionType.GRAMMAR, SectionType.READING, SectionType.WRITING, SectionType.SPEAKING];
+

@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Prepare section details with feedback
-    const sectionDetails = testAttempt.sectionAttempts.map((section) => ({
+    const sectionDetails = testAttempt.sectionAttempts.map((section: any) => ({
       sectionType: section.sectionType,
       rawScore: section.rawScore,
       weightedScore: section.weightedScore,

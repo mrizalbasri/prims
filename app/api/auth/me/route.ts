@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
           fullName: user.fullName,
           major: user.major,
           cohort: user.cohort,
+          hasModuleAccess: user.hasModuleAccess,
         },
       },
       { status: 200 }

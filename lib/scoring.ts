@@ -1,6 +1,5 @@
-import { PrismaClient, SectionType } from '@/app/generated/prisma';
-
-const prisma = new PrismaClient();
+import { SectionType } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
 /**
  * Scoring weights as per SRS requirements
@@ -52,7 +51,7 @@ export async function calculateObjectiveScore(sectionAttemptId: string): Promise
 
   if (answers.length === 0) return 0;
 
-  const correctCount = answers.filter((a) => a.isCorrect).length;
+  const correctCount = answers.filter((a: any) => a.isCorrect).length;
   const totalQuestions = answers.length;
 
   // Raw score is percentage (0-100)

@@ -1,5 +1,7 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, UserStatus } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, UserStatus, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { 
   hashPassword, 
   generateToken, 
@@ -9,7 +11,7 @@ import {
   type RegisterData 
 } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,9 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
-  output   = "../app/generated/prisma"
+  provider   = "prisma-client-js"
+  
+  engineType = "library"
 }
 
 datasource db {
@@ -26,27 +24,29 @@ enum UserStatus {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
-  passwordHash  String       @map("password_hash")
-  role          UserRole     @default(STUDENT)
-  fullName      String       @map("full_name")
-  major         String?
-  cohort        String?
-  status        UserStatus   @default(ACTIVE)
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  id              String     @id @default(cuid())
+  email           String     @unique
+  passwordHash    String     @map("password_hash")
+  role            UserRole   @default(STUDENT)
+  fullName        String     @map("full_name")
+  major           String?
+  cohort          String?
+  status          UserStatus @default(ACTIVE)
+  hasModuleAccess Boolean    @default(false) @map("has_module_access")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
   // Relations
-  testAttempts         TestAttempt[]
-  auditLogs            AuditLog[]
-  vocabularyProgress   VocabularyProgress[]
-  vocabularySessions   VocabularySession[]
-  writingSubmissions   WritingSubmission[]
-  speakingSessions     SpeakingSession[]
-  reminderPreference   ReminderPreference?
-  reminderLogs         ReminderLog[]
-  learningSessions     LearningSession[]
+  testAttempts       TestAttempt[]
+  auditLogs          AuditLog[]
+  vocabularyProgress VocabularyProgress[]
+  vocabularySessions VocabularySession[]
+  writingSubmissions WritingResponse[]
+  speakingSessions   SpeakingResponse[]
+  reminderPreference ReminderPreference?
+  reminderLogs       ReminderLog[]
+  learningSessions   LearningSession[]
+  finalResults       FinalResult[]
 
   @@map("users")
 }
@@ -65,17 +65,17 @@ enum TestAttemptStatus {
 }
 
 model TestAttempt {
-  id          String             @id @default(cuid())
-  userId      String             @map("user_id")
-  status      TestAttemptStatus  @default(NOT_STARTED)
-  startedAt   DateTime?          @map("started_at")
-  submittedAt DateTime?          @map("submitted_at")
-  completedAt DateTime?          @map("completed_at")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
+  id          String            @id @default(cuid())
+  userId      String            @map("user_id")
+  status      TestAttemptStatus @default(NOT_STARTED)
+  startedAt   DateTime?         @map("started_at")
+  submittedAt DateTime?         @map("submitted_at")
+  completedAt DateTime?         @map("completed_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
 
   // Relations
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   sectionAttempts SectionAttempt[]
   finalResult     FinalResult?
 
@@ -100,32 +100,54 @@ enum SectionStatus {
 }
 
 model SectionAttempt {
-  id             String        @id @default(cuid())
-  testAttemptId  String        @map("test_attempt_id")
-  sectionType    SectionType   @map("section_type")
-  timeLimitSec   Int           @map("time_limit_sec")
-  status         SectionStatus @default(NOT_STARTED)
-  startedAt      DateTime?     @map("started_at")
-  endedAt        DateTime?     @map("ended_at")
-  rawScore       Float?        @map("raw_score")
-  weightedScore  Float?        @map("weighted_score")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  id            String        @id @default(cuid())
+  testAttemptId String        @map("test_attempt_id")
+  sectionType   SectionType   @map("section_type")
+  status        SectionStatus @default(NOT_STARTED)
+  startTime     DateTime?     @map("start_time")
+  endTime       DateTime?     @map("end_time")
+  rawScore      Float         @default(0) @map("raw_score")
+  weightedScore Float         @default(0) @map("weighted_score")
+  feedback      String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  testAttempt        TestAttempt         @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
-  objectiveAnswers   ObjectiveAnswer[]
-  writingResponse    WritingResponse?
-  speakingResponse   SpeakingResponse?
+  testAttempt      TestAttempt       @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
+  objectiveAnswers ObjectiveAnswer[]
+  writingResponse  WritingResponse?
+  speakingResponse SpeakingResponse?
 
-  @@index([testAttemptId])
-  @@index([sectionType])
+  @@unique([testAttemptId, sectionType])
   @@map("section_attempts")
 }
 
 // ============================================
-// OBJECTIVE SECTIONS (Vocabulary, Grammar, Reading)
+// QUESTIONS & ANSWERS
 // ============================================
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Question {
+  id           String             @id @default(cuid())
+  sectionType  SectionType        @map("section_type")
+  difficulty   QuestionDifficulty
+  questionText String             @map("question_text")
+  options      String[]           @default([])
+  correctAnswer String             @map("correct_answer")
+  explanation  String?
+  metadata     Json?
+  isActive     Boolean            @default(true) @map("is_active")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@index([sectionType, difficulty])
+  @@map("questions")
+}
 
 model ObjectiveAnswer {
   id               String   @id @default(cuid())
@@ -140,6 +162,7 @@ model ObjectiveAnswer {
   // Relations
   sectionAttempt SectionAttempt @relation(fields: [sectionAttemptId], references: [id], onDelete: Cascade)
 
+  @@unique([sectionAttemptId, questionId])
   @@index([sectionAttemptId])
   @@index([questionId])
   @@map("objective_answers")
@@ -149,28 +172,38 @@ model ObjectiveAnswer {
 // WRITING SECTION
 // ============================================
 
-enum ResponseStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
+enum WritingPromptType {
+  PARAGRAPH
+  ESSAY
+}
+
+model WritingPrompt {
+  id         String             @id @default(cuid())
+  type       WritingPromptType
+  level      ProficiencyLevel?
+  promptText String             @map("prompt_text")
+  rubric     Json?
+  isActive   Boolean            @default(true) @map("is_active")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  @@map("writing_prompts")
 }
 
 model WritingResponse {
-  id               String         @id @default(cuid())
-  sectionAttemptId String         @unique @map("section_attempt_id")
-  promptId         String         @map("prompt_id")
-  responseText     String         @map("response_text") @db.Text
-  aiFeedbackJson   Json?          @map("ai_feedback_json")
-  score            Float?
-  status           ResponseStatus @default(PENDING)
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  sectionAttemptId String   @unique @map("section_attempt_id")
+  content          String
+  wordCount        Int      @default(0) @map("word_count")
+  feedback         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   // Relations
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   sectionAttempt SectionAttempt @relation(fields: [sectionAttemptId], references: [id], onDelete: Cascade)
 
-  @@index([status])
   @@map("writing_responses")
 }
 
@@ -178,154 +211,65 @@ model WritingResponse {
 // SPEAKING SECTION
 // ============================================
 
+enum SpeakingScenarioType {
+  DAILY_CONVERSATION
+  ACADEMIC_DISCUSSION
+  PRESENTATION
+}
+
+model SpeakingScenario {
+  id           String               @id @default(cuid())
+  type         SpeakingScenarioType
+  level        ProficiencyLevel?
+  title        String
+  description  String
+  promptText   String               @map("prompt_text")
+  initialAudio String?              @map("initial_audio")
+  isActive     Boolean              @default(true) @map("is_active")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@map("speaking_scenarios")
+}
+
 model SpeakingResponse {
-  id               String         @id @default(cuid())
-  sectionAttemptId String         @unique @map("section_attempt_id")
-  promptId         String         @map("prompt_id")
-  audioUrl         String?        @map("audio_url")
-  transcriptText   String?        @map("transcript_text") @db.Text
-  aiFeedbackJson   Json?          @map("ai_feedback_json")
-  score            Float?
-  status           ResponseStatus @default(PENDING)
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  sectionAttemptId String   @unique @map("section_attempt_id")
+  audioUrl         String?  @map("audio_url")
+  transcript       String?
+  feedback         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   // Relations
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   sectionAttempt SectionAttempt @relation(fields: [sectionAttemptId], references: [id], onDelete: Cascade)
 
-  @@index([status])
   @@map("speaking_responses")
 }
 
 // ============================================
-// FINAL RESULTS
-// ============================================
-
-enum ProficiencyLevel {
-  BEGINNER      // 0-49
-  INTERMEDIATE  // 50-74
-  ADVANCED      // 75-100
-}
-
-model FinalResult {
-  id            String           @id @default(cuid())
-  testAttemptId String           @unique @map("test_attempt_id")
-  vocabScore    Float            @map("vocab_score")
-  grammarScore  Float            @map("grammar_score")
-  readingScore  Float            @map("reading_score")
-  writingScore  Float            @map("writing_score")
-  speakingScore Float            @map("speaking_score")
-  totalScore    Float            @map("total_score")
-  level         ProficiencyLevel
-  computedAt    DateTime         @default(now()) @map("computed_at")
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-
-  // Relations
-  testAttempt TestAttempt @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
-
-  @@index([level])
-  @@index([totalScore])
-  @@map("final_results")
-}
-
-// ============================================
-// AUDIT LOG
-// ============================================
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  actorId    String   @map("actor_id")
-  action     String
-  targetType String   @map("target_type")
-  targetId   String?  @map("target_id")
-  metadata   Json?
-  timestamp  DateTime @default(now())
-
-  // Relations
-  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
-
-  @@index([actorId])
-  @@index([action])
-  @@index([timestamp])
-  @@map("audit_logs")
-}
-
-// ============================================
-// QUESTION BANK (for objective sections)
-// ============================================
-
-enum QuestionDifficulty {
-  EASY
-  MEDIUM
-  HARD
-}
-
-model Question {
-  id             String             @id @default(cuid())
-  sectionType    SectionType        @map("section_type")
-  difficulty     QuestionDifficulty @default(MEDIUM)
-  questionText   String             @map("question_text") @db.Text
-  options        Json               // Array of options for multiple choice
-  correctAnswer  String             @map("correct_answer")
-  explanation    String?            @db.Text
-  metadata       Json?              // Additional metadata (e.g., topic, skill tested)
-  isActive       Boolean            @default(true) @map("is_active")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-
-  @@index([sectionType])
-  @@index([difficulty])
-  @@index([isActive])
-  @@map("questions")
-}
-
-// ============================================
-// PROMPTS (for writing and speaking sections)
-// ============================================
-
-model Prompt {
-  id          String      @id @default(cuid())
-  sectionType SectionType @map("section_type")
-  promptText  String      @map("prompt_text") @db.Text
-  rubric      Json?       // Scoring rubric for AI evaluation
-  isActive    Boolean     @default(true) @map("is_active")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-
-  @@index([sectionType])
-  @@index([isActive])
-  @@map("prompts")
-}
-
-// ============================================
-// PHASE 2: VOCABULARY LEARNING
+// VOCABULARY MODULE
 // ============================================
 
 enum VocabularyCategory {
-  ACADEMIC_GENERAL
-  TECHNICAL
+  ACADEMIC
   BUSINESS
-  SCIENCE
-  ARTS
-}
-
-enum CardState {
-  NEW
-  LEARNING
-  MASTERED
+  GENERAL
+  TECHNICAL
 }
 
 model VocabularyCard {
   id              String             @id @default(cuid())
   term            String
-  meaning         String             @db.Text
-  exampleSentence String             @map("example_sentence") @db.Text
-  pronunciation   String?            // IPA or phonetic
+  meaning         String
+  exampleSentence String?            @map("example_sentence")
+  pronunciation   String?
   audioUrl        String?            @map("audio_url")
-  category        VocabularyCategory @default(ACADEMIC_GENERAL)
+  category        VocabularyCategory @default(GENERAL)
   difficulty      QuestionDifficulty @default(MEDIUM)
-  metadata        Json?              // Additional info (synonyms, antonyms, etc)
+  metadata        Json?
   isActive        Boolean            @default(true) @map("is_active")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
@@ -333,22 +277,27 @@ model VocabularyCard {
   // Relations
   progress VocabularyProgress[]
 
-  @@index([category])
-  @@index([difficulty])
-  @@index([isActive])
+  @@index([category, difficulty])
   @@map("vocabulary_cards")
 }
 
+enum CardState {
+  NEW
+  LEARNING
+  REVIEW
+  MASTERED
+}
+
 model VocabularyProgress {
-  id             String    @id @default(cuid())
-  userId         String    @map("user_id")
-  cardId         String    @map("card_id")
-  state          CardState @default(NEW)
-  repetitionCount Int      @default(0) @map("repetition_count")
-  lastReviewedAt DateTime? @map("last_reviewed_at")
-  masteredAt     DateTime? @map("mastered_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  cardId          String    @map("card_id")
+  state           CardState @default(NEW)
+  repetitionCount Int       @default(0) @map("repetition_count")
+  lastReviewedAt  DateTime? @map("last_reviewed_at")
+  masteredAt      DateTime? @map("mastered_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
   user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -361,187 +310,95 @@ model VocabularyProgress {
 }
 
 model VocabularySession {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  cardsReviewed Int      @default(0) @map("cards_reviewed")
-  cardsLearned  Int      @default(0) @map("cards_learned")
-  cardsMastered Int      @default(0) @map("cards_mastered")
-  durationSec   Int      @default(0) @map("duration_sec")
-  startedAt     DateTime @map("started_at")
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  cardsReviewed Int       @default(0) @map("cards_reviewed")
+  cardsLearned  Int       @default(0) @map("cards_learned")
+  cardsMastered Int       @default(0) @map("cards_mastered")
+  durationSec   Int       @default(0) @map("duration_sec")
+  startedAt     DateTime  @map("started_at")
   endedAt       DateTime? @map("ended_at")
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([startedAt])
   @@map("vocabulary_sessions")
 }
 
 // ============================================
-// PHASE 2: WRITING PRACTICE
+// RESULTS & AUDIT
 // ============================================
 
-enum WritingPromptType {
-  PARAGRAPH
-  ESSAY
-  EMAIL
-  REPORT
+enum ProficiencyLevel {
+  BEGINNER
+  ELEMENTARY
+  INTERMEDIATE
+  UPPER_INTERMEDIATE
+  ADVANCED
+  PROFICIENT
 }
 
-model WritingPrompt {
-  id          String            @id @default(cuid())
-  title       String
-  promptText  String            @map("prompt_text") @db.Text
-  type        WritingPromptType @default(PARAGRAPH)
-  level       ProficiencyLevel  @default(INTERMEDIATE)
-  wordCountMin Int?             @map("word_count_min")
-  wordCountMax Int?             @map("word_count_max")
-  rubric      Json?             // Scoring criteria
-  isActive    Boolean           @default(true) @map("is_active")
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+model FinalResult {
+  id            String           @id @default(cuid())
+  testAttemptId String           @unique @map("test_attempt_id")
+  userId        String           @map("user_id")
+  overallLevel  ProficiencyLevel @map("overall_level")
+  overallScore  Float            @map("overall_score")
+  cefrLevel     String           @map("cefr_level")
+  sectionScores Json             @map("section_scores")
+  recommendation String?
+  createdAt     DateTime         @default(now()) @map("created_at")
 
   // Relations
-  submissions WritingSubmission[]
-
-  @@index([type])
-  @@index([level])
-  @@index([isActive])
-  @@map("writing_prompts")
-}
-
-model WritingSubmission {
-  id             String         @id @default(cuid())
-  userId         String         @map("user_id")
-  promptId       String         @map("prompt_id")
-  responseText   String         @map("response_text") @db.Text
-  wordCount      Int            @map("word_count")
-  aiFeedbackJson Json?          @map("ai_feedback_json")
-  grammarScore   Float?         @map("grammar_score")
-  clarityScore   Float?         @map("clarity_score")
-  structureScore Float?         @map("structure_score")
-  overallScore   Float?         @map("overall_score")
-  status         ResponseStatus @default(PENDING)
-  revisionCount  Int            @default(0) @map("revision_count")
-  submittedAt    DateTime       @default(now()) @map("submitted_at")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-
-  // Relations
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prompt   WritingPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
-  revisions WritingRevision[]
+  testAttempt TestAttempt @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([promptId])
-  @@index([status])
-  @@map("writing_submissions")
+  @@map("final_results")
 }
 
-model WritingRevision {
-  id           String   @id @default(cuid())
-  submissionId String   @map("submission_id")
-  revisionText String   @map("revision_text") @db.Text
-  notes        String?  @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  action    String
+  resource  String
+  metadata  Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  submission WritingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-
-  @@index([submissionId])
-  @@map("writing_revisions")
-}
-
-// ============================================
-// PHASE 2: SPEAKING PRACTICE
-// ============================================
-
-enum SpeakingScenarioType {
-  INTRODUCTION
-  PRESENTATION
-  DISCUSSION
-  INTERVIEW
-  CONVERSATION
-}
-
-model SpeakingScenario {
-  id          String              @id @default(cuid())
-  title       String
-  description String              @db.Text
-  type        SpeakingScenarioType @default(CONVERSATION)
-  level       ProficiencyLevel    @default(INTERMEDIATE)
-  prompts     Json                // Array of conversation prompts/questions
-  rubric      Json?               // Scoring criteria
-  isActive    Boolean             @default(true) @map("is_active")
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-
-  // Relations
-  sessions SpeakingSession[]
-
-  @@index([type])
-  @@index([level])
-  @@index([isActive])
-  @@map("speaking_scenarios")
-}
-
-model SpeakingSession {
-  id             String         @id @default(cuid())
-  userId         String         @map("user_id")
-  scenarioId     String         @map("scenario_id")
-  audioUrl       String?        @map("audio_url")
-  transcriptText String?        @map("transcript_text") @db.Text
-  aiFeedbackJson Json?          @map("ai_feedback_json")
-  fluencyScore   Float?         @map("fluency_score")
-  pronunciationScore Float?     @map("pronunciation_score")
-  grammarScore   Float?         @map("grammar_score")
-  overallScore   Float?         @map("overall_score")
-  status         ResponseStatus @default(PENDING)
-  durationSec    Int?           @map("duration_sec")
-  startedAt      DateTime       @default(now()) @map("started_at")
-  completedAt    DateTime?      @map("completed_at")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-
-  // Relations
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scenario SpeakingScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([scenarioId])
-  @@index([status])
-  @@map("speaking_sessions")
+  @@map("audit_logs")
 }
 
 // ============================================
-// PHASE 2: LEARNING REMINDERS
+// MISC (LEARNING, REMINDERS)
 // ============================================
 
 enum ReminderCadence {
   DAILY
-  EVERY_TWO_DAYS
   WEEKLY
-  CUSTOM
+  OFF
 }
 
 enum ReminderChannel {
   EMAIL
   PUSH
-  SMS
+  BOTH
 }
 
 model ReminderPreference {
-  id        String           @id @default(cuid())
-  userId    String           @unique @map("user_id")
-  isActive  Boolean          @default(true) @map("is_active")
-  cadence   ReminderCadence  @default(DAILY)
-  channel   ReminderChannel  @default(EMAIL)
-  timeOfDay String?          @map("time_of_day") // HH:MM format
-  timezone  String           @default("Asia/Jakarta")
-  createdAt DateTime         @default(now()) @map("created_at")
-  updatedAt DateTime         @updatedAt @map("updated_at")
+  id        String          @id @default(cuid())
+  userId    String          @unique @map("user_id")
+  cadence   ReminderCadence @default(DAILY)
+  channel   ReminderChannel @default(EMAIL)
+  timeOfDay String          @default("09:00") @map("time_of_day")
+  isActive  Boolean         @default(true) @map("is_active")
+  updatedAt DateTime        @updatedAt @map("updated_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -550,43 +407,32 @@ model ReminderPreference {
 }
 
 model ReminderLog {
-  id          String    @id @default(cuid())
-  userId      String    @map("user_id")
-  channel     ReminderChannel
-  status      String    // sent, failed, delivered
-  message     String?   @db.Text
-  sentAt      DateTime  @default(now()) @map("sent_at")
-  deliveredAt DateTime? @map("delivered_at")
-  errorMessage String?  @map("error_message") @db.Text
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  channel   String
+  status    String
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([status])
-  @@index([sentAt])
   @@map("reminder_logs")
 }
-
-// ============================================
-// PHASE 2: LEARNING ANALYTICS
-// ============================================
 
 model LearningSession {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
-  moduleType  String   @map("module_type") // vocabulary, writing, speaking
+  sectionType String   @map("section_type")
   durationSec Int      @map("duration_sec")
-  completed   Boolean  @default(false)
-  startedAt   DateTime @map("started_at")
-  endedAt     DateTime? @map("ended_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  completedAt DateTime @default(now()) @map("completed_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([moduleType])
-  @@index([startedAt])
   @@map("learning_sessions")
+}
+
+enum ResponseStatus {
+  SUCCESS
+  ERROR
 }

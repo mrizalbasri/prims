@@ -1,6 +1,7 @@
-import { PrismaClient, VocabularyCategory, CardState, QuestionDifficulty } from '@/app/generated/prisma';
+import { VocabularyCategory, CardState, QuestionDifficulty } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+
 
 /**
  * Vocabulary card data structure
@@ -210,7 +211,7 @@ export async function getNextReviewCards(
     take: limit,
   });
 
-  return progress.map((p) => ({
+  return progress.map((p: any) => ({
     progressId: p.id,
     cardId: p.card.id,
     term: p.card.term,
@@ -304,9 +305,9 @@ export async function getVocabularyStats(userId: string) {
 
   const stats = {
     total: progress.length,
-    new: progress.filter((p) => p.state === CardState.NEW).length,
-    learning: progress.filter((p) => p.state === CardState.LEARNING).length,
-    mastered: progress.filter((p) => p.state === CardState.MASTERED).length,
+    new: progress.filter((p: any) => p.state === CardState.NEW).length,
+    learning: progress.filter((p: any) => p.state === CardState.LEARNING).length,
+    mastered: progress.filter((p: any) => p.state === CardState.MASTERED).length,
   };
 
   return stats;

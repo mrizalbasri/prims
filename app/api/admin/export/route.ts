@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
       'Proficiency Level',
     ];
 
-    const csvRows = testAttempts.map((attempt) => [
+    const csvRows = testAttempts.map((attempt: any) => [
       attempt.user.id,
       attempt.user.fullName,
       attempt.user.email,
@@ -88,8 +90,8 @@ export async function GET(request: NextRequest) {
     // Build CSV string
     const csvContent = [
       csvHeaders.join(','),
-      ...csvRows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ...csvRows.map((row: any) =>
+        row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
       ),
     ].join('\n');
 

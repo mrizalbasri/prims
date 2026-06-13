@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, ReminderCadence, ReminderChannel } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, ReminderCadence, ReminderChannel, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 // GET: Get user's reminder preferences
 export async function GET(request: NextRequest) {

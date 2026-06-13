@@ -1,9 +1,11 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, SectionType, SectionStatus } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreObjectiveAnswer } from '@/lib/scoring';
 
-const prisma = new PrismaClient();
+
 
 interface SaveAnswerRequest {
   testAttemptId: string;
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Verify test attempt belongs to user
     const testAttempt = await prisma.testAttempt.findFirst({
-      where: {
+      where: {  
         id: testAttemptId,
         userId: user.id,
       },
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Get section attempt
     const sectionAttempt = await prisma.sectionAttempt.findFirst({
-      where: {
+      where: {  
         testAttemptId,
         sectionType,
       },
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Update section status if not started
     if (sectionAttempt.status === SectionStatus.NOT_STARTED) {
       await prisma.sectionAttempt.update({
-        where: { id: sectionAttempt.id },
+        where: {   id: sectionAttempt.id },
         data: {
           status: SectionStatus.IN_PROGRESS,
           startedAt: new Date(),
@@ -84,8 +86,9 @@ export async function POST(request: NextRequest) {
         );
 
         await prisma.objectiveAnswer.upsert({
-          where: {
-            sectionAttemptId_questionId: {
+          where: {  
+            // @ts-ignore
+              sectionAttemptId_questionId: {
               sectionAttemptId: sectionAttempt.id,
               questionId: answer.questionId,
             },
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
     // Save writing response
     if (writingResponse) {
       await prisma.writingResponse.upsert({
-        where: { sectionAttemptId: sectionAttempt.id },
+        where: {   sectionAttemptId: sectionAttempt.id },
         create: {
           sectionAttemptId: sectionAttempt.id,
           promptId: writingResponse.promptId,
@@ -125,7 +128,7 @@ export async function POST(request: NextRequest) {
     // Save speaking response
     if (speakingResponse) {
       await prisma.speakingResponse.upsert({
-        where: { sectionAttemptId: sectionAttempt.id },
+        where: {   sectionAttemptId: sectionAttempt.id },
         create: {
           sectionAttemptId: sectionAttempt.id,
           promptId: speakingResponse.promptId,

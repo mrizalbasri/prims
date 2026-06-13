@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        submissions: submissions.map((s) => ({
+        submissions: submissions.map((s: any) => ({
           id: s.id,
           prompt: s.prompt,
           wordCount: s.wordCount,

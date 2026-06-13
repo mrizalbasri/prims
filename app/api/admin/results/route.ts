@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/app/generated/prisma';
+import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-const prisma = new PrismaClient();
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format results
-    const results = testAttempts.map((attempt) => ({
+    const results = testAttempts.map((attempt: any) => ({
       testAttemptId: attempt.id,
       student: {
         id: attempt.user.id,
@@ -105,8 +107,8 @@ export async function GET(request: NextRequest) {
           totalPages: Math.ceil(totalCount / limit),
         },
         filters: {
-          cohorts: cohorts.map((c) => c.cohort).filter(Boolean),
-          majors: majors.map((m) => m.major).filter(Boolean),
+          cohorts: cohorts.map((c: any) => c.cohort).filter(Boolean),
+          majors: majors.map((m: any) => m.major).filter(Boolean),
         },
       },
       { status: 200 }
