@@ -1,6 +1,4 @@
 "use client";
-export const dynamic = 'force-dynamic';
-
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,11 +27,11 @@ type StatePayload = {
 };
 
 const sectionLabels: Record<Section["section"], string> = {
-  vocabulary: "Vocabulary",
-  grammar: "Grammar",
-  reading: "Reading",
-  writing: "Writing",
-  speaking: "Speaking",
+  vocabulary: "Vocabulary Assessment",
+  grammar: "Grammar Assessment",
+  reading: "Reading Comprehension",
+  writing: "Academic Essay Writing",
+  speaking: "Linguistic Speaking Test",
 };
 
 export default function StudentTestPage() {
@@ -52,29 +50,35 @@ export default function StudentTestPage() {
 
   useEffect(() => {
     async function bootstrap(): Promise<void> {
-      const startRes = await fetch("/api/test/start", { method: "POST" });
-      if (!startRes.ok) {
-        if (startRes.status === 401) router.push("/login");
-        setError("Unauthorized or failed to start test");
-        setIsLoading(false);
-        return;
-      }
+      try {
+        const startRes = await fetch("/api/test/start", { method: "POST" });
+        if (!startRes.ok) {
+          if (startRes.status === 401) router.push("/login");
+          setError("Unauthorized or failed to start test");
+          setIsLoading(false);
+          return;
+        }
 
-      const stateRes = await fetch("/api/test/state");
-      if (!stateRes.ok) {
-        setError("Failed to load test state");
-        setIsLoading(false);
-        return;
-      }
+        const stateRes = await fetch("/api/test/state");
+        if (!stateRes.ok) {
+          setError("Failed to load test state");
+          setIsLoading(false);
+          return;
+        }
 
-      const data = (await stateRes.json()) as StatePayload;
-      setSections(data.sections);
-      setAnswers(data.attempt?.answers ?? {});
-      setWritingResponse(data.attempt?.writingResponse ?? "");
-      setSpeakingResponse(data.attempt?.speakingResponse ?? "");
-      setSectionIndex(0);
-      setTimeLeft((data.sections[0]?.durationMinutes ?? 0) * 60);
-      setIsLoading(false);
+        const data = (await stateRes.json()) as StatePayload;
+        setSections(data.sections);
+        setAnswers(data.attempt?.answers ?? {});
+        setWritingResponse(data.attempt?.writingResponse ?? "");
+        setSpeakingResponse(data.attempt?.speakingResponse ?? "");
+        setSectionIndex(0);
+        setTimeLeft((data.sections[0]?.durationMinutes ?? 0) * 60);
+      } catch (err) {
+        console.error("Test bootstrap error:", err);
+        setError("Gagal memuat tes penempatan.");
+      } finally {
+        setIsLoading(false);
+      }
     }
 
     void bootstrap();
@@ -88,17 +92,22 @@ export default function StudentTestPage() {
   const persist = useCallback(
     async (sectionOverride?: Section["section"]): Promise<void> => {
       setIsSaving(true);
-      await fetch("/api/test/save", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          answers,
-          writingResponse,
-          speakingResponse,
-          currentSection: sectionOverride ?? currentSection?.section,
-        }),
-      });
-      setIsSaving(false);
+      try {
+        await fetch("/api/test/save", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            answers,
+            writingResponse,
+            speakingResponse,
+            currentSection: sectionOverride ?? currentSection?.section,
+          }),
+        });
+      } catch (err) {
+        console.error("Auto-save error:", err);
+      } finally {
+        setIsSaving(false);
+      }
     },
     [answers, writingResponse, speakingResponse, currentSection?.section],
   );
@@ -116,18 +125,22 @@ export default function StudentTestPage() {
         const confirmSubmit = fromTimeout
           ? true
           : window.confirm(
-              "Submit final test now? This action cannot be undone.",
+              "Apakah Anda yakin ingin menyelesaikan ujian Placement Test ini sekarang? Jawaban tidak dapat diubah kembali.",
             );
 
         if (!confirmSubmit) return;
 
-        const submitRes = await fetch("/api/test/submit", { method: "POST" });
-        if (!submitRes.ok) {
-          setError("Failed to submit test");
-          return;
+        try {
+          const submitRes = await fetch("/api/test/submit", { method: "POST" });
+          if (!submitRes.ok) {
+            setError("Gagal mensubmit tes.");
+            return;
+          }
+          router.push("/student/result");
+        } catch (err) {
+          console.error("Submit error:", err);
+          setError("Gagal mengirimkan ujian.");
         }
-
-        router.push("/student/result");
         return;
       }
 
@@ -168,73 +181,85 @@ export default function StudentTestPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-hanken font-bold text-primary">Memuat Tes...</p>
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Mempersiapkan Lembar Ujian...</p>
         </div>
       </div>
     );
   }
 
   if (!currentSection) {
-    return <main className="p-10">No test section available.</main>;
+    return <main className="p-10 text-center font-hanken font-bold text-primary">Seksi tes tidak tersedia.</main>;
   }
 
+  const isTimeUrgent = timeLeft < 120; // 2 minutes
+
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
       {/* Header Navigation */}
-      <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-        <div className="max-w-container-max mx-auto flex justify-between items-center">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <span className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</span>
-            <div className="h-6 w-px bg-outline-variant hidden sm:block"></div>
-            <span className="font-inter text-sm font-medium text-on-surface-variant hidden sm:block">Placement Test</span>
+            <span className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</span>
+            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
+            <span className="font-inter text-sm font-semibold text-gray-500 dark:text-gray-400 hidden sm:block">Placement Test</span>
           </div>
           
-          <div className="flex items-center gap-4 bg-primary/5 px-4 py-2 rounded-xl border border-primary/10">
-            <span className="material-symbols-outlined text-primary text-xl">timer</span>
-            <span className="font-jetbrains font-bold text-primary tabular-nums text-lg">
+          {/* Timer Display */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+            isTimeUrgent 
+              ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 animate-pulse" 
+              : "bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400"
+          }`}>
+            <span className="material-symbols-outlined text-xl">timer</span>
+            <span className="font-mono font-black tabular-nums text-lg">
               {formatClock(timeLeft)}
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Progress</p>
-              <p className="font-jetbrains font-bold text-primary text-sm">{progress}%</p>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Progress</span>
+              <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">{progress}%</span>
             </div>
+            
             <button 
               onClick={() => void moveNext(false)}
-              className="bg-secondary text-on-secondary font-hanken text-sm font-bold px-6 py-2.5 rounded-lg hover:shadow-lg transition-all"
+              className="bg-teal-600 hover:bg-teal-700 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
             >
-              {sectionIndex + 1 === sections.length ? "Selesai" : "Lanjut"}
+              {sectionIndex + 1 === sections.length ? "Kirim Ujian" : "Lanjut Seksi"}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Progress Bar (Thin) */}
-      <div className="h-1 w-full bg-surface-container-high">
+      {/* Progress Bar */}
+      <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-800">
         <div 
-          className="h-full bg-secondary transition-all duration-1000" 
+          className="h-full bg-teal-500 transition-all duration-500" 
           style={{ width: `${progress}%` }}
         ></div>
       </div>
 
-      <main className="flex-1 max-w-container-max mx-auto w-full px-margin-mobile md:px-gutter py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Main Content: Questions */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Panel: Questions Container */}
         <div className="lg:col-span-8 space-y-8">
-          <div className="flex items-center gap-3 mb-2">
-             <span className="bg-primary-container text-on-primary-container px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider font-jetbrains">
+          <div className="flex items-center gap-3">
+             <span className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-200/50 dark:border-blue-800/20">
                {sectionLabels[currentSection.section]}
              </span>
-             {isSaving && <span className="text-[10px] text-on-surface-variant italic animate-pulse">Menyimpan otomatis...</span>}
+             {isSaving && (
+               <span className="text-xs text-gray-450 dark:text-gray-500 italic animate-pulse flex items-center gap-1">
+                 <span className="material-symbols-outlined text-sm">cloud_sync</span>
+                 Draft disimpan otomatis...
+               </span>
+             )}
           </div>
 
           {error && (
-            <div className="p-4 bg-error-container text-on-error-container rounded-xl border border-error/20 flex items-center gap-3">
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl border border-red-250 dark:border-red-900/30 flex items-center gap-3">
               <span className="material-symbols-outlined">error</span>
               <p className="text-sm font-medium">{error}</p>
             </div>
@@ -242,71 +267,94 @@ export default function StudentTestPage() {
 
           <div className="space-y-6">
             {currentSection.questions.map((question, idx) => (
-              <div key={question.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 md:p-8 shadow-sm">
-                <div className="flex gap-4 mb-6">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-jetbrains font-bold text-sm">
+              <div key={question.id} className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 md:p-8 shadow-sm space-y-6">
+                {/* Question Prompt */}
+                <div className="flex gap-4">
+                  <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-mono font-bold text-sm">
                     {idx + 1}
                   </span>
-                  <h2 className="font-hanken text-lg md:text-xl font-bold text-primary leading-relaxed pt-0.5">
+                  <h2 className="font-hanken text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-relaxed pt-0.5 select-none">
                     {question.prompt}
                   </h2>
                 </div>
 
+                {/* Multiple Choice Options */}
                 {question.options && (
-                  <div className="grid grid-cols-1 gap-3 ml-0 md:ml-12">
-                    {question.options.map((option) => (
-                      <label 
-                        key={option}
-                        className={`group relative flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                          answers[question.id] === option 
-                          ? "border-secondary bg-secondary/5" 
-                          : "border-outline-variant hover:border-secondary/50"
-                        }`}
-                      >
-                        <input 
-                          type="radio" 
-                          name={question.id}
-                          className="peer hidden"
-                          checked={answers[question.id] === option}
-                          onChange={() => setAnswers(prev => ({ ...prev, [question.id]: option }))}
-                        />
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
-                          answers[question.id] === option 
-                          ? "border-secondary bg-secondary" 
-                          : "border-outline-variant group-hover:border-secondary"
-                        }`}>
-                          <span className={`material-symbols-outlined text-on-secondary text-sm transition-opacity ${
-                            answers[question.id] === option ? "opacity-100" : "opacity-0"
-                          }`} style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
-                        </div>
-                        <span className={`font-inter font-medium ${answers[question.id] === option ? "text-primary" : "text-on-surface-variant"}`}>
-                          {option}
-                        </span>
-                      </label>
-                    ))}
+                  <div className="grid grid-cols-1 gap-3 pl-0 md:pl-12">
+                    {question.options.map((option) => {
+                      const isSelected = answers[question.id] === option;
+                      return (
+                        <label 
+                          key={option}
+                          className={`group relative flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                            isSelected 
+                              ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
+                              : "border-gray-100 dark:border-gray-800 hover:border-teal-500/50 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          }`}
+                        >
+                          <input 
+                            type="radio" 
+                            name={question.id}
+                            className="peer hidden"
+                            checked={isSelected}
+                            onChange={() => setAnswers(prev => ({ ...prev, [question.id]: option }))}
+                          />
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
+                            isSelected 
+                              ? "border-teal-500 bg-teal-500 text-white" 
+                              : "border-gray-300 dark:border-gray-600 group-hover:border-teal-500"
+                          }`}>
+                            {isSelected && <span className="material-symbols-outlined text-xs">check</span>}
+                          </div>
+                          <span className={`font-inter text-sm font-semibold ${
+                            isSelected ? "text-teal-600 dark:text-teal-400" : "text-gray-700 dark:text-gray-300"
+                          }`}>
+                            {option}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 )}
 
+                {/* Writing Essay Editor */}
                 {currentSection.section === "writing" && (
-                  <textarea
-                    value={writingResponse}
-                    onChange={(e) => setWritingResponse(e.target.value)}
-                    className="w-full min-h-[300px] p-6 rounded-xl border-2 border-outline-variant focus:border-secondary focus:ring-0 transition-all font-inter bg-surface-bright resize-none"
-                    placeholder="Ketik jawaban esai Anda di sini..."
-                  />
+                  <div className="pl-0 md:pl-12 space-y-2">
+                    <textarea
+                      value={writingResponse}
+                      onChange={(e) => setWritingResponse(e.target.value)}
+                      className="w-full min-h-[300px] p-6 rounded-2xl border-2 border-gray-250 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
+                      placeholder="Tulis esai tanggapan Anda di sini secara lengkap..."
+                    />
+                    <div className="flex justify-between items-center text-xs text-gray-400">
+                      <span>Patuhi batasan penulisan argumen akademik.</span>
+                      <span>{writingResponse.trim().split(/\s+/).filter(w => w.length > 0).length} kata</span>
+                    </div>
+                  </div>
                 )}
 
+                {/* Speaking Audio Recorder */}
                 {currentSection.section === "speaking" && (
-                  <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-outline-variant rounded-2xl bg-surface-container-low">
-                    <span className="material-symbols-outlined text-6xl text-secondary mb-4">mic</span>
-                    <p className="font-hanken font-bold text-primary mb-2">Rekam Jawaban Lisan</p>
-                    <p className="font-inter text-sm text-on-surface-variant text-center max-w-xs mb-6">Pastikan mikrofon Anda aktif. Klik tombol di bawah untuk mulai merekam.</p>
-                    <textarea
-                      value={speakingResponse}
-                      onChange={(e) => setSpeakingResponse(e.target.value)}
-                      className="w-full mt-4 p-4 rounded-lg border border-outline-variant font-jetbrains text-xs"
-                      placeholder="Atau ketik transkrip di sini (fallback)..."
-                    />
+                  <div className="pl-0 md:pl-12 space-y-6">
+                    <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
+                      <span className="material-symbols-outlined text-5xl text-red-500">mic</span>
+                      <p className="font-hanken font-bold text-gray-800 dark:text-white">Rekam Tanggapan Lisan</p>
+                      <p className="font-inter text-xs text-gray-400 dark:text-gray-500 text-center max-w-xs leading-relaxed">
+                        Gunakan mikrofon yang berfungsi dengan baik. Ucapkan kalimat di atas dengan lantang dan jelas.
+                      </p>
+                      
+                      <div className="w-full space-y-1.5 pt-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+                          Atau Salin/Ketik Transkrip Suara (Fallback)
+                        </span>
+                        <textarea
+                          value={speakingResponse}
+                          onChange={(e) => setSpeakingResponse(e.target.value)}
+                          className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 font-inter text-xs text-gray-900 dark:text-white resize-none h-24 focus:outline-none focus:ring-2 focus:ring-red-500/20 leading-relaxed"
+                          placeholder="Masukkan teks transkrip rekaman suara Anda jika tidak dapat melakukan perekaman langsung..."
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -314,57 +362,68 @@ export default function StudentTestPage() {
           </div>
         </div>
 
-        {/* Sidebar: Navigation Map */}
-        <div className="lg:col-span-4">
-          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 sticky top-28 shadow-sm">
-            <h3 className="font-hanken text-lg font-bold text-primary mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined">map</span>
-              Navigator Soal
+        {/* Right Panel: Navigator Map Sidebar */}
+        <div className="lg:col-span-4 lg:sticky lg:top-28">
+          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 shadow-sm space-y-6">
+            <h3 className="font-hanken text-lg font-bold text-gray-950 dark:text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-gray-400">map</span>
+              Navigator Struktur Ujian
             </h3>
             
             <div className="space-y-6">
               <div>
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Struktur Tes</p>
-                <div className="space-y-2">
-                  {sections.map((sec, idx) => (
-                    <div 
-                      key={sec.section}
-                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                        idx === sectionIndex 
-                        ? "border-secondary bg-secondary/10" 
-                        : idx < sectionIndex 
-                        ? "border-outline-variant bg-surface-container-low opacity-60" 
-                        : "border-outline-variant bg-surface-bright"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`material-symbols-outlined text-sm ${idx === sectionIndex ? "text-secondary" : "text-on-surface-variant"}`}>
-                          {idx < sectionIndex ? "check_circle" : "radio_button_unchecked"}
-                        </span>
-                        <span className={`font-inter text-sm font-semibold ${idx === sectionIndex ? "text-primary" : "text-on-surface-variant"}`}>
-                          {sectionLabels[sec.section]}
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Sub-Seksi Tes</p>
+                <div className="space-y-2.5">
+                  {sections.map((sec, idx) => {
+                    const isCurrent = idx === sectionIndex;
+                    const isCompleted = idx < sectionIndex;
+                    return (
+                      <div 
+                        key={sec.section}
+                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
+                          isCurrent 
+                            ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
+                            : isCompleted 
+                            ? "border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 opacity-60" 
+                            : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-850"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`material-symbols-outlined text-lg ${
+                            isCurrent ? "text-teal-600 dark:text-teal-400" :
+                            isCompleted ? "text-teal-600 dark:text-teal-400" :
+                            "text-gray-300 dark:text-gray-600"
+                          }`} style={{ fontVariationSettings: isCompleted ? "'FILL' 1" : "" }}>
+                            {isCompleted ? "check_circle" : "radio_button_unchecked"}
+                          </span>
+                          <span className={`font-inter text-xs font-bold ${
+                            isCurrent ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            {sectionLabels[sec.section].split(' ')[0]} {/* display first word */}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[9px] font-bold px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-400 dark:text-gray-500">
+                          {sec.durationMinutes}m
                         </span>
                       </div>
-                      <span className="font-jetbrains text-[10px] font-bold px-2 py-0.5 bg-surface-container-high rounded text-on-surface-variant">
-                        {sec.durationMinutes}m
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-outline-variant">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-3 h-3 rounded-full bg-secondary"></div>
-                  <span className="font-inter text-xs text-on-surface-variant font-medium">Seksi Saat Ini</span>
-                </div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-3 h-3 rounded-full bg-surface-container-low border border-outline-variant"></div>
-                  <span className="font-inter text-xs text-on-surface-variant font-medium">Seksi Mendatang</span>
+              {/* Navigator Legend */}
+              <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+                  <span className="font-inter text-xs text-gray-550 dark:text-gray-400 font-medium">Seksi Berjalan</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-primary/20"></div>
-                  <span className="font-inter text-xs text-on-surface-variant font-medium">Selesai Dikirim</span>
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"></div>
+                  <span className="font-inter text-xs text-gray-550 dark:text-gray-400 font-medium">Seksi Mendatang</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-teal-500/20"></div>
+                  <span className="font-inter text-xs text-gray-550 dark:text-gray-400 font-medium">Seksi Selesai</span>
                 </div>
               </div>
             </div>
