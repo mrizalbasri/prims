@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const cohort = searchParams.get('cohort');
     const major = searchParams.get('major');
+    const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = (page - 1) * limit;
@@ -25,9 +26,15 @@ export async function GET(request: NextRequest) {
     const userFilter: any = {};
     if (cohort) userFilter.cohort = cohort;
     if (major) userFilter.major = major;
+    if (search) {
+      userFilter.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
-    // Get total count
-    const totalCount = await prisma.testAttempt.count({
+    // Get total count for filtered attempts
+    const filteredCount = await prisma.testAttempt.count({
       where: {
         status: 'COMPLETED',
         user: userFilter,
@@ -57,32 +64,72 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    // Format results
-    const results = testAttempts.map((attempt: any) => ({
-      testAttemptId: attempt.id,
-      student: {
-        id: attempt.user.id,
-        email: attempt.user.email,
-        fullName: attempt.user.fullName,
-        major: attempt.user.major,
-        cohort: attempt.user.cohort,
+    // Format results according to FinalResult model schema
+    const results = testAttempts.map((attempt: any) => {
+      const sectionScores = attempt.finalResult?.sectionScores
+        ? (typeof attempt.finalResult.sectionScores === 'string'
+            ? JSON.parse(attempt.finalResult.sectionScores)
+            : attempt.finalResult.sectionScores)
+        : {};
+
+      return {
+        testAttemptId: attempt.id,
+        student: {
+          id: attempt.user.id,
+          email: attempt.user.email,
+          fullName: attempt.user.fullName,
+          major: attempt.user.major,
+          cohort: attempt.user.cohort,
+        },
+        status: attempt.status,
+        startedAt: attempt.startedAt,
+        submittedAt: attempt.submittedAt,
+        completedAt: attempt.completedAt,
+        scores: attempt.finalResult
+          ? {
+              vocabulary: sectionScores.vocabulary || 0,
+              grammar: sectionScores.grammar || 0,
+              reading: sectionScores.reading || 0,
+              writing: sectionScores.writing || 0,
+              speaking: sectionScores.speaking || 0,
+              total: attempt.finalResult.overallScore || 0,
+            }
+          : null,
+        level: attempt.finalResult?.cefrLevel || null,
+      };
+    });
+
+    // Compute global stats (all completed test attempts)
+    const totalCount = await prisma.testAttempt.count({
+      where: { status: 'COMPLETED' },
+    });
+
+    const beginnerCount = await prisma.testAttempt.count({
+      where: {
+        status: 'COMPLETED',
+        finalResult: {
+          overallLevel: 'BEGINNER',
+        },
       },
-      status: attempt.status,
-      startedAt: attempt.startedAt,
-      submittedAt: attempt.submittedAt,
-      completedAt: attempt.completedAt,
-      scores: attempt.finalResult
-        ? {
-            vocabulary: attempt.finalResult.vocabScore,
-            grammar: attempt.finalResult.grammarScore,
-            reading: attempt.finalResult.readingScore,
-            writing: attempt.finalResult.writingScore,
-            speaking: attempt.finalResult.speakingScore,
-            total: attempt.finalResult.totalScore,
-          }
-        : null,
-      level: attempt.finalResult?.level || null,
-    }));
+    });
+
+    const intermediateCount = await prisma.testAttempt.count({
+      where: {
+        status: 'COMPLETED',
+        finalResult: {
+          overallLevel: 'INTERMEDIATE',
+        },
+      },
+    });
+
+    const advancedCount = await prisma.testAttempt.count({
+      where: {
+        status: 'COMPLETED',
+        finalResult: {
+          overallLevel: 'ADVANCED',
+        },
+      },
+    });
 
     // Get unique cohorts and majors for filter options
     const cohorts = await prisma.user.findMany({
@@ -100,11 +147,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         results,
+        stats: {
+          total: totalCount,
+          advanced: advancedCount,
+          intermediate: intermediateCount,
+          beginner: beginnerCount,
+        },
         pagination: {
           page,
           limit,
-          total: totalCount,
-          totalPages: Math.ceil(totalCount / limit),
+          total: filteredCount,
+          totalPages: Math.ceil(filteredCount / limit),
         },
         filters: {
           cohorts: cohorts.map((c: any) => c.cohort).filter(Boolean),
