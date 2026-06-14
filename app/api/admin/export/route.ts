@@ -68,24 +68,32 @@ export async function GET(request: NextRequest) {
       'Proficiency Level',
     ];
 
-    const csvRows = testAttempts.map((attempt: any) => [
-      attempt.user.id,
-      attempt.user.fullName,
-      attempt.user.email,
-      attempt.user.cohort || '',
-      attempt.user.major || '',
-      attempt.status,
-      attempt.startedAt?.toISOString() || '',
-      attempt.submittedAt?.toISOString() || '',
-      attempt.completedAt?.toISOString() || '',
-      attempt.finalResult?.vocabScore.toFixed(2) || '',
-      attempt.finalResult?.grammarScore.toFixed(2) || '',
-      attempt.finalResult?.readingScore.toFixed(2) || '',
-      attempt.finalResult?.writingScore.toFixed(2) || '',
-      attempt.finalResult?.speakingScore.toFixed(2) || '',
-      attempt.finalResult?.totalScore.toFixed(2) || '',
-      attempt.finalResult?.level || '',
-    ]);
+    const csvRows = testAttempts.map((attempt: any) => {
+      const sectionScores = attempt.finalResult?.sectionScores
+        ? (typeof attempt.finalResult.sectionScores === 'string'
+            ? JSON.parse(attempt.finalResult.sectionScores)
+            : attempt.finalResult.sectionScores)
+        : {};
+
+      return [
+        attempt.user.id,
+        attempt.user.fullName,
+        attempt.user.email,
+        attempt.user.cohort || '',
+        attempt.user.major || '',
+        attempt.status,
+        attempt.startedAt?.toISOString() || '',
+        attempt.submittedAt?.toISOString() || '',
+        attempt.completedAt?.toISOString() || '',
+        typeof sectionScores.vocabulary === 'number' ? sectionScores.vocabulary.toFixed(2) : '0.00',
+        typeof sectionScores.grammar === 'number' ? sectionScores.grammar.toFixed(2) : '0.00',
+        typeof sectionScores.reading === 'number' ? sectionScores.reading.toFixed(2) : '0.00',
+        typeof sectionScores.writing === 'number' ? sectionScores.writing.toFixed(2) : '0.00',
+        typeof sectionScores.speaking === 'number' ? sectionScores.speaking.toFixed(2) : '0.00',
+        attempt.finalResult?.overallScore ? attempt.finalResult.overallScore.toFixed(2) : '0.00',
+        attempt.finalResult?.cefrLevel || '',
+      ];
+    });
 
     // Build CSV string
     const csvContent = [
