@@ -1,11 +1,9 @@
 "use client";
-export const dynamic = 'force-dynamic';
-
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import Logo from "@/components/ui/Logo";
 
 type User = {
   id: string;
@@ -17,9 +15,18 @@ type User = {
 };
 
 type Result = {
-  totalScore: number;
-  level: "Beginner" | "Intermediate" | "Advanced";
-  computedAt: string;
+  testAttemptId: string;
+  completedAt: string;
+  scores: {
+    vocabulary: number;
+    grammar: number;
+    reading: number;
+    writing: number;
+    speaking: number;
+    total: number;
+  };
+  level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  levelDescription: string;
 };
 
 export default function StudentDashboardPage() {
@@ -27,37 +34,42 @@ export default function StudentDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [tokenInput, setTokenInput] = useState("");
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
     async function loadData() {
-      // Load user info
-      const userRes = await fetch("/api/auth/me");
-      if (!userRes.ok) {
-        router.push("/login");
-        return;
-      }
-      const userData = await userRes.json();
-      setUser(userData.user);
-
-      // Load test result if available
-      const resultRes = await fetch("/api/student/result");
-      if (resultRes.ok) {
-        const resultData = await resultRes.json();
-        if (resultData.result) {
-          setResult(resultData.result);
-        } else {
-          router.push("/student/test");
+      try {
+        // Load user info
+        const userRes = await fetch("/api/auth/me");
+        if (!userRes.ok) {
+          router.push("/login");
           return;
         }
-      } else {
-        router.push("/student/test");
-        return;
-      }
+        const userData = await userRes.json();
+        setUser(userData.user);
 
-      setIsLoading(false);
+        // Load test result if available
+        const resultRes = await fetch("/api/student/result");
+        if (resultRes.ok) {
+          const resultData = await resultRes.json();
+          if (resultData.hasResult && resultData.result) {
+            setResult(resultData.result);
+          } else {
+            // Show welcome screen instead of auto-redirect
+            setShowWelcome(true);
+          }
+        } else {
+          // Show welcome screen instead of auto-redirect
+          setShowWelcome(true);
+        }
+      } catch (err) {
+        console.error("Dashboard load data error:", err);
+      } finally {
+        setIsLoading(false);
+      }
     }
 
     void loadData();
@@ -97,242 +109,344 @@ export default function StudentDashboardPage() {
     }
   }
 
+  // Helper function to calculate SVG Radar Chart points dynamically
+  function getRadarPoints(scores: Result["scores"]) {
+    const vRadius = 40 * (scores.vocabulary / 100);
+    const gRadius = 40 * (scores.grammar / 100);
+    const rRadius = 40 * (scores.reading / 100);
+    const wRadius = 40 * (scores.writing / 100);
+    const sRadius = 40 * (scores.speaking / 100);
+
+    // Center of SVG is at (50, 50)
+    // Angles: Vocab = 0deg (up), Grammar = 72deg, Reading = 144deg, Writing = 216deg, Speaking = 288deg
+    const x0 = 50;
+    const y0 = 50 - vRadius;
+
+    const x1 = 50 + gRadius * Math.cos(18 * Math.PI / 180);
+    const y1 = 50 - gRadius * Math.sin(18 * Math.PI / 180);
+
+    const x2 = 50 + rRadius * Math.cos(54 * Math.PI / 180);
+    const y2 = 50 + rRadius * Math.sin(54 * Math.PI / 180);
+
+    const x3 = 50 - wRadius * Math.cos(54 * Math.PI / 180);
+    const y3 = 50 + wRadius * Math.sin(54 * Math.PI / 180);
+
+    const x4 = 50 - sRadius * Math.cos(18 * Math.PI / 180);
+    const y4 = 50 - sRadius * Math.sin(18 * Math.PI / 180);
+
+    return `${x0},${y0} ${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`;
+  }
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-hanken font-bold text-primary">Memuat Dashboard...</p>
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Memuat Dashboard...</p>
         </div>
       </div>
     );
   }
 
-  const levelColor = result?.level === "Advanced" ? "text-status-advanced" : 
-                     result?.level === "Intermediate" ? "text-status-intermediate" : 
-                     "text-status-beginner";
+  const levelNameFormatted = result ? result.level.charAt(0) + result.level.slice(1).toLowerCase() : "";
 
-  const levelBg = result?.level === "Advanced" ? "bg-status-advanced/10" : 
-                  result?.level === "Intermediate" ? "bg-status-intermediate/10" : 
-                  "bg-status-beginner/10";
+  const levelColor = result?.level === "ADVANCED" ? "text-green-600 dark:text-green-400" : 
+                     result?.level === "INTERMEDIATE" ? "text-yellow-600 dark:text-yellow-400" : 
+                     "text-red-600 dark:text-red-400";
+
+  const levelBg = result?.level === "ADVANCED" ? "bg-green-50 dark:bg-green-500/10 border-green-200/50" : 
+                  result?.level === "INTERMEDIATE" ? "bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200/50" : 
+                  "bg-red-50 dark:bg-red-500/10 border-red-200/50";
 
   const learningModules = [
     {
       title: "Vocabulary Learning",
-      description: "Pelajari kosakata baru dengan sistem flashcard dan spaced repetition",
-      icon: "book",
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-      href: "/student/vocabulary",
-      available: true
+      description: "Pelajari kosakata akademik baru dengan sistem flashcard dan spaced repetition.",
+      icon: "style",
+      color: "text-blue-600 dark:text-blue-400",
+      bg: "bg-blue-50 dark:bg-blue-500/10",
+      border: "hover:border-blue-500/40",
+      href: "/student/vocabulary"
     },
     {
       title: "Writing Practice",
-      description: "Latih kemampuan menulis dengan AI feedback dan scoring",
-      icon: "draw",
-      color: "text-orange-600",
-      bg: "bg-orange-50",
-      href: "/student/writing",
-      available: true
+      description: "Latih kemampuan menulis esai akademik dengan umpan balik dan penilaian dari AI.",
+      icon: "edit_document",
+      color: "text-orange-600 dark:text-orange-400",
+      bg: "bg-orange-50 dark:bg-orange-500/10",
+      border: "hover:border-orange-500/40",
+      href: "/student/writing"
     },
     {
       title: "Speaking Practice",
-      description: "Praktikkan speaking dengan skenario real-world dan AI scoring",
-      icon: "mic",
-      color: "text-red-600",
-      bg: "bg-red-50",
-      href: "/student/speaking",
-      available: true
+      description: "Praktikkan kelancaran berbicara lisan dengan simulasi skenario real-world dan penilaian AI.",
+      icon: "record_voice_over",
+      color: "text-red-600 dark:text-red-400",
+      bg: "bg-red-50 dark:bg-red-500/10",
+      border: "hover:border-red-500/40",
+      href: "/student/speaking"
     }
   ];
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
       {/* Header Navigation */}
-      <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-        <div className="max-w-container-max mx-auto flex justify-between items-center">
-          <Link href="/" className="flex items-center gap-2 font-hanken text-2xl font-bold text-primary tracking-tight"><Image src="/logo.webp" alt="Logo" width={32} height={32} /> PRISM</Link>
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <Link href="/" className="flex items-center">
+            <Logo className="h-11 w-36" />
+          </Link>
           
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-3 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant">
-              <span className="material-symbols-outlined text-on-surface-variant text-xl">person</span>
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-3 bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-100 dark:border-gray-700">
+              <span className="material-symbols-outlined text-gray-400 text-xl">account_circle</span>
               <div className="text-left">
-                <p className="font-hanken text-sm font-bold text-primary">{user?.fullName}</p>
-                <p className="font-inter text-xs text-on-surface-variant">{user?.cohort} • {user?.major}</p>
+                <p className="font-hanken text-sm font-bold text-gray-800 dark:text-white">{user?.fullName}</p>
+                <p className="font-inter text-[10px] text-gray-400 dark:text-gray-300 uppercase tracking-wider">{user?.cohort} • {user?.major}</p>
               </div>
             </div>
             
             <button 
               onClick={() => void handleLogout()}
-              className="flex items-center gap-2 text-on-surface-variant hover:text-error transition-colors font-inter text-sm font-medium"
+              className="flex items-center gap-2 text-gray-500 hover:text-red-600 transition-colors font-inter text-sm font-semibold cursor-pointer"
             >
-              <span className="material-symbols-outlined">logout</span>
+              <span className="material-symbols-outlined text-lg">logout</span>
               <span className="hidden sm:inline">Keluar</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-container-max mx-auto px-margin-mobile md:px-gutter py-10 space-y-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10 space-y-10">
         {/* Welcome Section */}
-        <div>
-          <h1 className="font-hanken text-3xl md:text-4xl font-bold text-primary mb-2">
-            Selamat Datang, {user?.fullName?.split(' ')[0]}! 👋
+        <div className="space-y-1">
+          <h1 className="font-hanken text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white">
+            Selamat Datang Kembali, {user?.fullName?.split(' ')[0]}! 👋
           </h1>
-          <p className="font-inter text-on-surface-variant">
-            Lanjutkan perjalanan belajar bahasa Inggris Anda dengan modul pembelajaran interaktif.
+          <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
+            Lanjutkan perjalanan akademik dan peningkatan kompetensi bahasa Inggris Anda hari ini.
           </p>
         </div>
 
-        {/* Test Result Card (if available) */}
+        {/* Test Result Card or Pre-Test Banner */}
         {result ? (
-          <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-6 md:p-8 text-on-primary shadow-xl relative overflow-hidden">
-            <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <p className="text-on-primary/80 text-xs font-bold uppercase tracking-widest mb-2">Hasil Tes Penempatan</p>
-                <div className="flex items-baseline gap-4 mb-3">
-                  <h2 className="font-hanken text-5xl font-bold">{result.totalScore}</h2>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${levelBg} ${levelColor}`}>
-                    {result.level}
-                  </span>
+          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-md p-6 md:p-8 flex flex-col lg:flex-row gap-8 items-center">
+            {/* Left Result Details */}
+            <div className="flex-1 space-y-6 w-full">
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-widest">
+                  Hasil Ujian Placement Test Anda
+                </span>
+                <div className="flex items-baseline gap-4">
+                  <h2 className="font-hanken text-6xl font-black text-gray-900 dark:text-white">
+                    {result.scores.total}
+                  </h2>
+                  <span className="text-sm font-semibold text-gray-400">/ 100</span>
                 </div>
-                <p className="text-on-primary/70 text-sm">
-                  Tes diselesaikan pada {new Date(result.computedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${levelBg} ${levelColor}`}>
+                    <span className="material-symbols-outlined text-base">verified</span>
+                    {levelNameFormatted}
+                  </div>
+                  <div className="text-xs text-gray-400 font-inter">
+                    Diuji pada {new Date(result.completedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+                <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                  {result.levelDescription}
                 </p>
               </div>
-              <Link 
-                href="/student/result"
-                className="inline-flex items-center gap-2 bg-on-primary/20 backdrop-blur-sm text-on-primary font-hanken font-bold px-6 py-3 rounded-xl hover:bg-on-primary/30 transition-all group"
-              >
-                Lihat Detail
-                <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-surface-container-lowest rounded-2xl border-2 border-dashed border-outline-variant p-8 text-center">
-            <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">assignment</span>
-            <h2 className="font-hanken text-xl font-bold text-primary mb-2">Belum Ada Hasil Tes</h2>
-            <p className="font-inter text-on-surface-variant mb-6">Mulai tes penempatan untuk mengetahui level bahasa Inggris Anda.</p>
-            <Link 
-              href="/student/test"
-              className="inline-flex items-center gap-2 bg-primary text-on-primary font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all group"
-            >
-              Mulai Tes Sekarang
-              <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-            </Link>
-          </div>
-        )}
 
-        {/* Learning Modules Grid */}
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-hanken text-2xl font-bold text-primary flex items-center gap-2">
-              <span className="material-symbols-outlined">school</span>
-              Modul Pembelajaran
-            </h2>
-            {result && (
-              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider bg-surface-container-low px-3 py-1 rounded-full">
-                Level: {result.level}
-              </span>
-            )}
-          </div>
-
-          {!user?.hasModuleAccess ? (
-            <div className="bg-surface-container-lowest rounded-2xl border-2 border-outline-variant p-8 text-center max-w-2xl mx-auto shadow-sm">
-              <span className="material-symbols-outlined text-5xl text-error mb-4">lock</span>
-              <h3 className="font-hanken text-xl font-bold text-primary mb-2">Modul Terkunci</h3>
-              <p className="font-inter text-on-surface-variant mb-6 text-sm">
-                Anda membutuhkan token akses dari dosen Anda untuk membuka modul pembelajaran ini.
-              </p>
-              
-              <form onSubmit={handleVerifyToken} className="max-w-xs mx-auto">
-                <div className="flex flex-col gap-3">
-                  <input
-                    type="text"
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                    placeholder="Masukkan Token Dosen"
-                    className="w-full px-4 py-3 rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary font-jetbrains text-center tracking-widest text-primary"
-                    required
-                  />
-                  {tokenError && (
-                    <p className="text-error text-xs font-inter font-medium">{tokenError}</p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={isVerifying || !tokenInput.trim()}
-                    className="w-full bg-primary text-on-primary font-hanken font-bold py-3 rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                  >
-                    {isVerifying ? (
-                      <span className="w-5 h-5 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></span>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-sm">key</span>
-                        Buka Akses Modul
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {learningModules.map((module) => (
-                <Link
-                  key={module.title}
-                  href={module.href}
-                  className="group bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 hover:shadow-xl hover:border-secondary/50 transition-all"
+              <div>
+                <Link 
+                  href="/student/result"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all group"
                 >
-                  <div className={`w-14 h-14 rounded-xl ${module.bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                    <span className={`material-symbols-outlined ${module.color} text-3xl`}>{module.icon}</span>
-                  </div>
-                  
-                  <h3 className="font-hanken text-lg font-bold text-primary mb-2 group-hover:text-secondary transition-colors">
-                    {module.title}
-                  </h3>
-                  <p className="font-inter text-sm text-on-surface-variant mb-4">
-                    {module.description}
-                  </p>
-                  
-                  <div className="flex items-center gap-2 text-secondary font-hanken text-sm font-bold">
-                    Mulai Belajar
-                    <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                  </div>
+                  Lihat Detail Hasil & Rekomendasi
+                  <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
                 </Link>
-              ))}
+              </div>
             </div>
-          )}
+
+            {/* Right Radar Chart SVG */}
+            <div className="w-full lg:w-80 flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-800 flex-shrink-0">
+              <span className="font-hanken text-xs font-bold text-gray-400 dark:text-gray-300 tracking-wider mb-4 uppercase">
+                Skill Breakdown Chart
+              </span>
+              <div className="w-48 h-48 relative">
+                <svg className="w-full h-full text-gray-900 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 100 100">
+                  {/* Outlines */}
+                  <polygon className="text-gray-200 dark:text-gray-700" points="50,10 90,40 75,90 25,90 10,40" strokeWidth="0.5"></polygon>
+                  <polygon className="text-gray-200/50 dark:text-gray-750" points="50,25 80,47.5 68.75,70 31.25,70 20,47.5" strokeWidth="0.5"></polygon>
+                  <polygon className="text-gray-255/20 dark:text-gray-800" points="50,40 70,55 62.5,50 37.5,50 30,55" strokeWidth="0.5"></polygon>
+                  
+                  {/* Axis */}
+                  <line x1="50" y1="50" x2="50" y2="10" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
+                  <line x1="50" y1="50" x2="90" y2="40" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
+                  <line x1="50" y1="50" x2="75" y2="90" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
+                  <line x1="50" y1="50" x2="25" y2="90" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
+                  <line x1="50" y1="50" x2="10" y2="40" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
+
+                  {/* Dynamic Points Polygon */}
+                  <polygon 
+                    className="text-blue-600 dark:text-blue-400 fill-blue-600/20 dark:fill-blue-400/20" 
+                    points={getRadarPoints(result.scores)} 
+                    stroke="currentColor" 
+                    strokeWidth="1.5"
+                  ></polygon>
+                  
+                  {/* Axis labels */}
+                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="middle" x="50" y="6">VOC</text>
+                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="start" x="92" y="41">GRA</text>
+                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="middle" x="78" y="96">REA</text>
+                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="middle" x="22" y="96">WRI</text>
+                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="end" x="8" y="41">SPE</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        ) : showWelcome ? (
+          /* ── Pre-Test Welcome Banner ── */
+          <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 md:p-12 text-white shadow-2xl">
+            {/* Background decoration */}
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24" />
+            
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center gap-8">
+              <div className="flex-1 space-y-4">
+                <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-white/20">
+                  <span className="material-symbols-outlined text-sm">school</span>
+                  PRISM Placement Test
+                </div>
+                <h2 className="font-hanken text-3xl md:text-4xl font-black leading-tight">
+                  Selesaikan Placement Test Anda 🚀
+                </h2>
+                <p className="font-inter text-sm text-blue-100 leading-relaxed max-w-lg">
+                  Sebelum mengakses modul belajar mandiri, Anda perlu menyelesaikan <strong>Adaptive Placement Test</strong> terlebih dahulu untuk mengukur kemampuan bahasa Inggris akademik Anda.
+                </p>
+                <button
+                  onClick={() => router.push('/student/test')}
+                  className="inline-flex items-center gap-3 bg-white text-blue-700 font-hanken font-black px-8 py-4 rounded-2xl hover:bg-blue-50 hover:shadow-xl transition-all group text-base cursor-pointer border-0"
+                >
+                  <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
+                  Mulai Placement Test
+                  <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                </button>
+              </div>
+
+              {/* Stats panel */}
+              <div className="flex-shrink-0 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6 grid grid-cols-2 gap-4 min-w-[220px]">
+                {[
+                  { label: 'Sections', value: '5', icon: 'layers' },
+                  { label: 'Duration', value: '~45 min', icon: 'schedule' },
+                  { label: 'Questions', value: '50+', icon: 'quiz' },
+                  { label: 'Result', value: 'Instant', icon: 'bolt' },
+                ].map((s) => (
+                  <div key={s.label} className="text-center">
+                    <span className="material-symbols-outlined text-blue-200 text-2xl">{s.icon}</span>
+                    <p className="font-hanken text-xl font-black text-white">{s.value}</p>
+                    <p className="font-inter text-[10px] text-blue-200 uppercase tracking-wider">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Learning Modules Section */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-hanken text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-blue-600">school</span>
+              Modul Pembelajaran Mandiri
+            </h2>
+            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200/20">
+              Level: {result ? levelNameFormatted : "Belum Tes"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {learningModules.map((module, idx) => {
+              const cardContent = (
+                <>
+                  <div>
+                    <div className={`w-14 h-14 rounded-xl ${module.bg} ${module.color} flex items-center justify-center mb-6 transition-transform border border-current/10 ${result ? 'group-hover:scale-110' : ''}`}>
+                      <span className="material-symbols-outlined text-3xl">{module.icon}</span>
+                    </div>
+                    
+                    <h3 className={`font-hanken text-lg font-bold text-gray-900 dark:text-white mb-2 transition-colors ${result ? 'group-hover:text-blue-600' : ''}`}>
+                      {module.title}
+                    </h3>
+                    
+                    <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
+                      {module.description}
+                    </p>
+                  </div>
+                  
+                  {result ? (
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-hanken text-sm font-bold">
+                      Mulai Latihan
+                      <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 font-hanken text-sm font-bold">
+                      <span className="material-symbols-outlined text-lg">lock</span>
+                      Terkunci (Butuh Placement Test)
+                    </div>
+                  )}
+                </>
+              );
+
+              return result ? (
+                <Link
+                  key={idx}
+                  href={module.href}
+                  className={`group bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl transition-all flex flex-col justify-between ${module.border}`}
+                >
+                  {cardContent}
+                </Link>
+              ) : (
+                <div
+                  key={idx}
+                  title="Selesaikan Placement Test terlebih dahulu untuk membuka modul ini"
+                  className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 flex flex-col justify-between opacity-60 cursor-not-allowed select-none"
+                >
+                  {cardContent}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6">
-          <h3 className="font-hanken text-lg font-bold text-primary mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined">insights</span>
-            Statistik Pembelajaran
+        {/* Quick Stats Section */}
+        <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 shadow-sm">
+          <h3 className="font-hanken text-lg font-bold text-gray-950 dark:text-white mb-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-gray-400">insights</span>
+            Statistik Perkembangan Belajar
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-surface-container-low rounded-xl">
-              <span className="material-symbols-outlined text-3xl text-blue-600 mb-2 inline-block">book</span>
-              <p className="font-jetbrains text-2xl font-bold text-primary">0</p>
-              <p className="font-inter text-xs text-on-surface-variant">Vocab Dipelajari</p>
-            </div>
-            <div className="text-center p-4 bg-surface-container-low rounded-xl">
-              <span className="material-symbols-outlined text-3xl text-orange-600 mb-2 inline-block">draw</span>
-              <p className="font-jetbrains text-2xl font-bold text-primary">0</p>
-              <p className="font-inter text-xs text-on-surface-variant">Esai Ditulis</p>
-            </div>
-            <div className="text-center p-4 bg-surface-container-low rounded-xl">
-              <span className="material-symbols-outlined text-3xl text-red-600 mb-2 inline-block">mic</span>
-              <p className="font-jetbrains text-2xl font-bold text-primary">0</p>
-              <p className="font-inter text-xs text-on-surface-variant">Sesi Speaking</p>
-            </div>
-            <div className="text-center p-4 bg-surface-container-low rounded-xl">
-              <span className="material-symbols-outlined text-3xl text-green-600 mb-2 inline-block">local_fire_department</span>
-              <p className="font-jetbrains text-2xl font-bold text-primary">0</p>
-              <p className="font-inter text-xs text-on-surface-variant">Hari Streak</p>
-            </div>
+            {[
+              { label: "Vocab Dipelajari", score: 0, icon: "style", color: "text-blue-600 bg-blue-50 dark:bg-blue-500/10" },
+              { label: "Esai Ditulis", score: 0, icon: "edit_document", color: "text-orange-600 bg-orange-50 dark:bg-orange-500/10" },
+              { label: "Sesi Speaking", score: 0, icon: "record_voice_over", color: "text-red-600 bg-red-50 dark:bg-red-500/10" },
+              { label: "Streak Belajar", score: 0, icon: "local_fire_department", color: "text-green-600 bg-green-50 dark:bg-green-500/10" }
+            ].map((stat, idx) => (
+              <div key={idx} className="text-center p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+                <span className={`material-symbols-outlined text-3xl p-2.5 rounded-xl mb-3 inline-block ${stat.color} ${!result ? 'opacity-40' : ''}`}>
+                  {stat.icon}
+                </span>
+                <p className="font-mono text-3xl font-black text-gray-900 dark:text-white">
+                  {stat.score}
+                </p>
+                <p className="font-inter text-xs text-gray-400 dark:text-gray-500 uppercase font-semibold mt-1">
+                  {stat.label}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </main>
