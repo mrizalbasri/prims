@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Logo from "@/components/ui/Logo";
 
 type Row = {
@@ -25,8 +26,10 @@ type Row = {
 };
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   
@@ -45,6 +48,29 @@ export default function AdminDashboardPage() {
     intermediate: { count: 0, percent: 0 },
     beginner: { count: 0, percent: 0 },
   });
+
+  // Auth guard — redirect to login if not authenticated as admin
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) {
+          router.push("/login");
+          return;
+        }
+        const data = await res.json();
+        if (data.user?.role !== "ADMIN") {
+          router.push("/login");
+          return;
+        }
+      } catch {
+        router.push("/login");
+      } finally {
+        setIsAuthChecking(false);
+      }
+    }
+    void checkAuth();
+  }, [router]);
 
   // Debounce search term to prevent rapid API requests
   useEffect(() => {
@@ -97,6 +123,7 @@ export default function AdminDashboardPage() {
     const params = new URLSearchParams({
       cohort: cohortFilter,
       major: majorFilter,
+      search: debouncedSearch,
     });
     window.location.href = `/api/admin/export?${params.toString()}`;
   }
@@ -106,6 +133,15 @@ export default function AdminDashboardPage() {
     if (res.ok) {
       window.location.href = "/login";
     }
+  }
+
+  // Show nothing while checking auth to prevent flash of content
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -131,9 +167,8 @@ export default function AdminDashboardPage() {
 
       <main className="flex-grow max-w-7xl w-full mx-auto px-6 py-10 space-y-10">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-100 dark:border-gray-800">
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <Logo className="h-11 w-36" />
               <div className="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
               <h1 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Admin Analytics</h1>
             </div>

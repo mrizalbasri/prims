@@ -38,6 +38,12 @@ export default function StudentDashboardPage() {
   const [tokenInput, setTokenInput] = useState("");
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [learningStats, setLearningStats] = useState({
+    vocabLearned: 0,
+    writingCount: 0,
+    speakingCount: 0,
+    streak: 0,
+  });
 
   useEffect(() => {
     async function loadData() {
@@ -64,6 +70,13 @@ export default function StudentDashboardPage() {
         } else {
           // Show welcome screen instead of auto-redirect
           setShowWelcome(true);
+        }
+
+        // Load real learning stats in parallel
+        const statsRes = await fetch("/api/student/stats");
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setLearningStats(statsData);
         }
       } catch (err) {
         console.error("Dashboard load data error:", err);
@@ -430,10 +443,10 @@ export default function StudentDashboardPage() {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Vocab Dipelajari", score: 0, icon: "style", color: "text-blue-600 bg-blue-50 dark:bg-blue-500/10" },
-              { label: "Esai Ditulis", score: 0, icon: "edit_document", color: "text-orange-600 bg-orange-50 dark:bg-orange-500/10" },
-              { label: "Sesi Speaking", score: 0, icon: "record_voice_over", color: "text-red-600 bg-red-50 dark:bg-red-500/10" },
-              { label: "Streak Belajar", score: 0, icon: "local_fire_department", color: "text-green-600 bg-green-50 dark:bg-green-500/10" }
+              { label: "Vocab Dipelajari", score: learningStats.vocabLearned, icon: "style", color: "text-blue-600 bg-blue-50 dark:bg-blue-500/10" },
+              { label: "Esai Ditulis", score: learningStats.writingCount, icon: "edit_document", color: "text-orange-600 bg-orange-50 dark:bg-orange-500/10" },
+              { label: "Sesi Speaking", score: learningStats.speakingCount, icon: "record_voice_over", color: "text-red-600 bg-red-50 dark:bg-red-500/10" },
+              { label: "Streak Belajar", score: learningStats.streak, icon: "local_fire_department", color: "text-green-600 bg-green-50 dark:bg-green-500/10" }
             ].map((stat, idx) => (
               <div key={idx} className="text-center p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
                 <span className={`material-symbols-outlined text-3xl p-2.5 rounded-xl mb-3 inline-block ${stat.color} ${!result ? 'opacity-40' : ''}`}>

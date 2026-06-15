@@ -17,11 +17,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const cohort = searchParams.get('cohort');
     const major = searchParams.get('major');
+    const search = searchParams.get('search');
 
     // Build filter conditions
     const userFilter: any = {};
     if (cohort) userFilter.cohort = cohort;
     if (major) userFilter.major = major;
+    if (search) {
+      userFilter.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     // Get all completed test attempts with results
     const testAttempts = await prisma.testAttempt.findMany({
@@ -109,7 +116,7 @@ export async function GET(request: NextRequest) {
       'RESULTS_EXPORTED',
       'TestAttempt',
       undefined,
-      { cohort, major, count: testAttempts.length }
+      { cohort, major, search, count: testAttempts.length }
     );
 
     // Return CSV file
