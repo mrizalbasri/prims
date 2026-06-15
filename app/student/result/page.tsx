@@ -1,257 +1,590 @@
 "use client";
-export const dynamic = 'force-dynamic';
 
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
+
+// ── Types aligned with /api/student/result response ──────────────────────────
+type SectionScores = {
+  vocabulary: number;
+  grammar: number;
+  reading: number;
+  writing: number;
+  speaking: number;
+  total: number;
+};
 
 type Result = {
-  vocabScore: number;
-  grammarScore: number;
-  readingScore: number;
-  writingScore: number;
-  speakingScore: number;
-  totalScore: number;
-  level: "Beginner" | "Intermediate" | "Advanced";
+  testAttemptId: string;
+  completedAt: string;
+  scores: SectionScores;
+  level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  cefrLevel: string;
+  overallScore: number;
+  levelDescription: string;
 };
 
 type ResultPayload = {
-  status: string;
-  result: Result | null;
+  hasResult: boolean;
+  result?: Result;
+  message?: string;
 };
 
-function levelColor(level: Result["level"]): { bg: string; text: string; icon: string } {
-  if (level === "Beginner") return { bg: "bg-status-beginner/10", text: "text-status-beginner", icon: "trending_up" };
-  if (level === "Intermediate") return { bg: "bg-status-intermediate/10", text: "text-status-intermediate", icon: "star_half" };
-  return { bg: "bg-status-advanced/10", text: "text-status-advanced", icon: "workspace_premium" };
-}
-
-function levelGuidance(level: Result["level"]): { title: string; description: string; tips: string[] } {
-  if (level === "Beginner") {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getLevelMeta(level: Result["level"]) {
+  if (level === "BEGINNER")
     return {
-      title: "Fondasi yang Kuat",
-      description: "Anda berada di tahap awal pembelajaran bahasa Inggris. Fokus pada membangun fondasi yang kuat.",
-      tips: [
-        "Pelajari grammar dasar dan struktur kalimat sederhana",
-        "Latih vocabulary harian dengan flashcard",
-        "Dengarkan podcast atau video berbahasa Inggris dengan subtitle",
-        "Praktikkan speaking dengan teman atau aplikasi"
-      ]
+      label: "Beginner",
+      bg: "bg-red-50 dark:bg-red-500/10",
+      border: "border-red-200/50 dark:border-red-800/30",
+      text: "text-red-600 dark:text-red-400",
+      gradientFrom: "from-red-500",
+      gradientTo: "to-rose-600",
+      icon: "trending_up",
     };
-  }
-  if (level === "Intermediate") {
+  if (level === "INTERMEDIATE")
     return {
-      title: "Tingkatkan Konsistensi",
-      description: "Anda memiliki pemahaman yang baik. Saatnya meningkatkan konsistensi dan kepercayaan diri.",
-      tips: [
-        "Tulis esai atau jurnal mingguan dalam bahasa Inggris",
-        "Ikuti diskusi atau debat dalam bahasa Inggris",
-        "Baca artikel akademik atau berita internasional",
-        "Praktikkan presentasi atau public speaking"
-      ]
+      label: "Intermediate",
+      bg: "bg-yellow-50 dark:bg-yellow-500/10",
+      border: "border-yellow-200/50 dark:border-yellow-800/30",
+      text: "text-yellow-600 dark:text-yellow-400",
+      gradientFrom: "from-yellow-500",
+      gradientTo: "to-amber-600",
+      icon: "star_half",
     };
-  }
   return {
-    title: "Pertahankan Keunggulan",
-    description: "Anda memiliki kemampuan bahasa Inggris yang sangat baik. Pertahankan dan tingkatkan terus.",
-    tips: [
-      "Baca jurnal akademik dan literatur kompleks",
-      "Tulis paper atau artikel ilmiah",
-      "Ikuti konferensi atau seminar internasional",
-      "Mentoring mahasiswa dengan level lebih rendah"
-    ]
+    label: "Advanced",
+    bg: "bg-green-50 dark:bg-green-500/10",
+    border: "border-green-200/50 dark:border-green-800/30",
+    text: "text-green-600 dark:text-green-400",
+    gradientFrom: "from-green-500",
+    gradientTo: "to-emerald-600",
+    icon: "workspace_premium",
   };
 }
 
+function getGuidance(level: Result["level"]) {
+  if (level === "BEGINNER")
+    return {
+      title: "Membangun Fondasi yang Kuat",
+      description:
+        "Kemampuan bahasa Inggris Anda berada di tahap awal. Fokus utama adalah membangun dasar kosakata dan tata bahasa dasar secara konsisten.",
+      tips: [
+        "Pelajari tata bahasa dasar dan pola kalimat sederhana setiap hari.",
+        "Latih kosakata akademik menggunakan flashcard modul Vocabulary PRISM.",
+        "Biasakan mendengarkan audio bahasa Inggris dengan bantuan subtitle.",
+        "Praktikkan menulis kalimat sederhana dan minta koreksi feedback AI.",
+      ],
+    };
+  if (level === "INTERMEDIATE")
+    return {
+      title: "Tingkatkan Konsistensi & Kepercayaan Diri",
+      description:
+        "Anda memiliki pemahaman yang cukup baik. Saatnya meningkatkan keterampilan ekspresi formal dan komunikasi akademik.",
+      tips: [
+        "Latih menulis esai terstruktur secara mingguan melalui modul Writing.",
+        "Ikuti diskusi akademik dan presentasikan topik dalam bahasa Inggris.",
+        "Perkaya bacaan dengan artikel jurnal ilmiah dan berita internasional.",
+        "Gunakan modul Speaking PRISM untuk memperlancar intonasi lisan Anda.",
+      ],
+    };
+  return {
+    title: "Kuasai Ketepatan & Ekspresi Akademik Tingkat Lanjut",
+    description:
+      "Luar biasa! Kemampuan Anda sangat baik. Fokus sekarang adalah memoles kefasihan dan memperkaya kosakata spesifik bidang studi.",
+    tips: [
+      "Banyak membaca publikasi riset, jurnal internasional, dan literatur kompleks.",
+      "Latih menulis paper akademis formal dengan diksi tingkat tinggi.",
+      "Ikuti webinar internasional dan coba berbicara aktif tanpa teks bantu.",
+      "Gunakan kemampuan Anda untuk membimbing rekan yang memerlukan bantuan.",
+    ],
+  };
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function StudentResultPage() {
-  const [payload, setPayload] = useState<ResultPayload | null>(null);
+  const router = useRouter();
+  const [result, setResult] = useState<Result | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [barsVisible, setBarsVisible] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    async function load(): Promise<void> {
+  async function fetchResult(isPolling = false) {
+    try {
       const res = await fetch("/api/student/result");
+
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
       if (!res.ok) {
-        setError("Gagal memuat hasil tes");
-        setIsLoading(false);
+        setError("Gagal memuat hasil tes penempatan.");
         return;
       }
 
-      const data = (await res.json()) as ResultPayload;
-      setPayload(data);
-      setIsLoading(false);
+      const data: ResultPayload = await res.json();
+
+      if (data.hasResult && data.result) {
+        // Stop polling and show result
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        setIsProcessing(false);
+        setResult(data.result);
+        // Trigger bar animation after short delay
+        setTimeout(() => setBarsVisible(true), 100);
+      } else {
+        // No result yet — show processing state and start polling
+        setIsProcessing(true);
+        if (!isPolling && !pollingRef.current) {
+          pollingRef.current = setInterval(() => {
+            void fetchResult(true);
+          }, 4000);
+        }
+      }
+    } catch {
+      setError("Terjadi kesalahan jaringan. Coba muat ulang halaman.");
+    } finally {
+      if (!isPolling) setIsLoading(false);
     }
-
-    void load();
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-hanken font-bold text-primary">Memuat Hasil Tes...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center px-margin-mobile">
-        <div className="max-w-md w-full bg-error-container text-on-error-container rounded-2xl p-8 border border-error/20">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="material-symbols-outlined text-3xl">error</span>
-            <h1 className="font-hanken text-xl font-bold">Terjadi Kesalahan</h1>
-          </div>
-          <p className="font-inter mb-6">{error}</p>
-          <Link href="/student/test" className="inline-flex items-center gap-2 bg-error text-on-error px-6 py-3 rounded-xl font-hanken font-bold hover:shadow-lg transition-all">
-            <span className="material-symbols-outlined">arrow_back</span>
-            Kembali ke Tes
-          </Link>
-        </div>
-      </div>
-    );
   }
 
   useEffect(() => {
-    let interval: number | null = null;
-    
-    if (payload && !payload.result && payload.status === "PROCESSING") {
-      interval = window.setInterval(() => {
-        window.location.reload();
-      }, 3000);
-    }
-    
+    void fetchResult();
     return () => {
-      if (interval) window.clearInterval(interval);
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [payload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!payload || !payload.result) {
-    const isProcessing = payload?.status === "PROCESSING";
-    
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center px-margin-mobile">
-        <div className="max-w-md w-full bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
-          {isProcessing ? (
-             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          ) : (
-             <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">pending</span>
-          )}
-          <h1 className="font-hanken text-2xl font-bold text-primary mb-2">
-            {isProcessing ? "AI Sedang Menilai Hasilmu" : "Hasil Belum Tersedia"}
-          </h1>
-          <p className="font-inter text-on-surface-variant mb-2">
-            Status saat ini: <span className="font-bold text-primary">{payload?.status}</span>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">
+            Memuat Hasil Tes...
           </p>
-          <p className="font-inter text-sm text-on-surface-variant mb-6">
-            Hasil tes Anda sedang diproses. Silakan cek kembali dalam beberapa saat.
-          </p>
-          <Link href="/student/test" className="inline-flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-xl font-hanken font-bold hover:shadow-lg transition-all">
-            <span className="material-symbols-outlined">arrow_back</span>
-            Kembali ke Tes
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error ──────────────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-6">
+        <div className="max-w-md w-full bg-white dark:bg-gray-900 rounded-3xl p-8 border border-red-200/50 shadow-xl text-center space-y-5">
+          <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto border border-red-200/50">
+            <span className="material-symbols-outlined text-3xl text-red-500">
+              error
+            </span>
+          </div>
+          <div className="space-y-2">
+            <h1 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">
+              Gagal Memuat Hasil
+            </h1>
+            <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
+              {error}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setError(null);
+              setIsLoading(true);
+              void fetchResult();
+            }}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-hanken font-bold transition-all cursor-pointer border-0"
+          >
+            <span className="material-symbols-outlined text-lg">refresh</span>
+            Coba Lagi
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Processing / No Result ─────────────────────────────────────────────────
+  if (!result) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-6">
+        <div className="max-w-lg w-full bg-white dark:bg-gray-900 rounded-3xl border border-gray-150 dark:border-gray-800 p-10 text-center space-y-8 shadow-2xl">
+          {/* Animated AI Processing Icon */}
+          <div className="relative w-24 h-24 mx-auto">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-100 dark:border-blue-900" />
+            <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+            <div className="absolute inset-3 bg-blue-50 dark:bg-blue-500/10 rounded-full flex items-center justify-center">
+              <span
+                className="material-symbols-outlined text-3xl text-blue-600 dark:text-blue-400"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                smart_toy
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-blue-200/50">
+              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
+              AI Sedang Memproses
+            </div>
+            <h1 className="font-hanken text-2xl font-bold text-gray-900 dark:text-white">
+              Menilai Esai & Rekaman Suara Anda
+            </h1>
+            <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed max-w-sm mx-auto">
+              Asisten AI sedang menganalisis jawaban esai dan rekaman speaking Anda secara mendalam. Proses ini membutuhkan beberapa saat. Halaman akan diperbarui secara otomatis.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 text-center">
+            {[
+              { label: "Analisis Esai", icon: "edit_document" },
+              { label: "Evaluasi Suara", icon: "record_voice_over" },
+              { label: "Kalkulasi Skor", icon: "calculate" },
+            ].map((step) => (
+              <div
+                key={step.label}
+                className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700"
+              >
+                <span className="material-symbols-outlined text-2xl text-gray-400 dark:text-gray-500 block mb-1">
+                  {step.icon}
+                </span>
+                <p className="font-inter text-[10px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide">
+                  {step.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <Link
+            href="/student"
+            className="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 font-inter text-sm font-semibold transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">
+              arrow_back
+            </span>
+            Kembali ke Dashboard
           </Link>
         </div>
       </div>
     );
   }
 
-  const result = payload.result;
-  const levelStyle = levelColor(result.level);
-  const guidance = levelGuidance(result.level);
+  // ── Result View ────────────────────────────────────────────────────────────
+  const meta = getLevelMeta(result.level);
+  const guidance = getGuidance(result.level);
+  const totalScore = Math.round(result.overallScore);
+  const completedDate = new Date(result.completedAt).toLocaleDateString(
+    "id-ID",
+    { day: "numeric", month: "long", year: "numeric" }
+  );
 
-  const sections = [
-    { label: "Vocabulary", score: result.vocabScore, icon: "book", color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Grammar", score: result.grammarScore, icon: "edit_note", color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Reading", score: result.readingScore, icon: "menu_book", color: "text-green-600", bg: "bg-green-50" },
-    { label: "Writing", score: result.writingScore, icon: "draw", color: "text-orange-600", bg: "bg-orange-50" },
-    { label: "Speaking", score: result.speakingScore, icon: "mic", color: "text-red-600", bg: "bg-red-50" },
+  const sectionBreakdown = [
+    {
+      label: "Vocabulary",
+      score: Math.round(result.scores?.vocabulary ?? 0),
+      icon: "style",
+      color: "text-blue-600 dark:text-blue-400",
+      bar: "bg-blue-500",
+      bg: "bg-blue-50 dark:bg-blue-500/10",
+    },
+    {
+      label: "Grammar",
+      score: Math.round(result.scores?.grammar ?? 0),
+      icon: "spellcheck",
+      color: "text-purple-600 dark:text-purple-400",
+      bar: "bg-purple-500",
+      bg: "bg-purple-50 dark:bg-purple-500/10",
+    },
+    {
+      label: "Reading",
+      score: Math.round(result.scores?.reading ?? 0),
+      icon: "menu_book",
+      color: "text-green-600 dark:text-green-400",
+      bar: "bg-green-500",
+      bg: "bg-green-50 dark:bg-green-500/10",
+    },
+    {
+      label: "Writing",
+      score: Math.round(result.scores?.writing ?? 0),
+      icon: "edit_document",
+      color: "text-orange-600 dark:text-orange-400",
+      bar: "bg-orange-500",
+      bg: "bg-orange-50 dark:bg-orange-500/10",
+    },
+    {
+      label: "Speaking",
+      score: Math.round(result.scores?.speaking ?? 0),
+      icon: "record_voice_over",
+      color: "text-red-600 dark:text-red-400",
+      bar: "bg-red-500",
+      bg: "bg-red-50 dark:bg-red-500/10",
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-surface">
-      {/* Header */}
-      <header className="bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-        <div className="max-w-container-max mx-auto flex justify-between items-center">
-          <Link href="/" className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</Link>
-          <Link href="/student" className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium">
-            <span className="material-symbols-outlined">arrow_back</span>
-            Dashboard
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <Link href="/" className="flex items-center">
+            <Logo className="h-11 w-36" />
+          </Link>
+          <Link
+            href="/student"
+            className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-inter text-sm font-semibold"
+          >
+            <span className="material-symbols-outlined text-lg">
+              arrow_back
+            </span>
+            <span className="hidden sm:inline">Kembali ke Dashboard</span>
           </Link>
         </div>
       </header>
 
-      <main className="max-w-container-max mx-auto px-margin-mobile md:px-gutter py-10 space-y-8">
-        {/* Hero Result Card */}
-        <div className="bg-gradient-to-br from-primary to-secondary rounded-3xl p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
-          <div className="relative z-10">
-            <span className="material-symbols-outlined text-on-primary text-6xl mb-4 inline-block" style={{ fontVariationSettings: "'FILL' 1" }}>
-              {levelStyle.icon}
-            </span>
-            <p className="text-on-primary/80 text-sm font-bold uppercase tracking-widest mb-2">Hasil Tes Penempatan</p>
-            <h1 className="font-hanken text-6xl md:text-7xl font-bold text-on-primary mb-4">{result.totalScore}</h1>
-            <div className="inline-flex items-center gap-2 bg-on-primary/20 backdrop-blur-sm px-6 py-3 rounded-full">
-              <span className="material-symbols-outlined text-on-primary">{levelStyle.icon}</span>
-              <span className="font-hanken text-xl font-bold text-on-primary">{result.level}</span>
+      <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 py-10 space-y-8">
+        {/* ── Hero Score Banner ── */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 md:p-12 text-white shadow-2xl">
+          {/* Background decorations */}
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
+              backgroundSize: "40px 40px",
+            }}
+          />
+          <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -translate-y-40 translate-x-40" />
+          <div className="absolute bottom-0 left-0 w-60 h-60 bg-white/5 rounded-full translate-y-30 -translate-x-30" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row items-center gap-8">
+            {/* Left — Score */}
+            <div className="text-center lg:text-left space-y-4 flex-1">
+              <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-white/20">
+                <span className="material-symbols-outlined text-sm">
+                  school
+                </span>
+                Hasil Placement Test PRISM
+              </div>
+
+              <div>
+                <p className="font-inter text-blue-200 text-xs uppercase tracking-widest font-bold mb-1">
+                  Skor Akhir Anda
+                </p>
+                <div className="flex items-baseline gap-3 justify-center lg:justify-start">
+                  <h1 className="font-hanken text-7xl md:text-8xl font-black tracking-tight">
+                    {totalScore}
+                  </h1>
+                  <span className="font-inter text-blue-300 text-xl font-semibold">
+                    / 100
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 justify-center lg:justify-start">
+                <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-5 py-2 rounded-full border border-white/20 font-hanken text-sm font-bold uppercase tracking-wider">
+                  <span
+                    className="material-symbols-outlined text-base"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    {meta.icon}
+                  </span>
+                  {meta.label}
+                </div>
+                <div className="inline-flex items-center gap-1.5 bg-white/10 px-4 py-2 rounded-full border border-white/15 font-mono text-sm font-bold">
+                  <span className="material-symbols-outlined text-sm text-blue-200">
+                    language
+                  </span>
+                  CEFR {result.cefrLevel}
+                </div>
+              </div>
+
+              <p className="font-inter text-xs text-blue-200 flex items-center gap-1.5 justify-center lg:justify-start">
+                <span className="material-symbols-outlined text-sm">
+                  calendar_today
+                </span>
+                Diuji pada {completedDate}
+              </p>
+            </div>
+
+            {/* Right — Score ring visual */}
+            <div className="flex-shrink-0 relative w-44 h-44">
+              <svg
+                viewBox="0 0 100 100"
+                className="w-full h-full -rotate-90"
+                strokeLinecap="round"
+              >
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.15)"
+                  strokeWidth="8"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="8"
+                  strokeDasharray={`${(totalScore / 100) * 263.9} 263.9`}
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span
+                  className="material-symbols-outlined text-4xl text-white"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  {meta.icon}
+                </span>
+                <span className="font-hanken text-xs font-bold text-blue-200 uppercase tracking-wider mt-1">
+                  {meta.label}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Section Scores Grid */}
-        <div>
-          <h2 className="font-hanken text-2xl font-bold text-primary mb-6 flex items-center gap-2">
-            <span className="material-symbols-outlined">analytics</span>
-            Rincian Skor per Seksi
-          </h2>
+        {/* ── Section Breakdown ── */}
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-gray-400">
+              analytics
+            </span>
+            <h2 className="font-hanken text-2xl font-bold text-gray-900 dark:text-white">
+              Analisis Kompetensi per Bidang
+            </h2>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {sections.map((section) => (
-              <div key={section.label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 hover:shadow-lg transition-all group">
-                <div className={`w-12 h-12 rounded-xl ${section.bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <span className={`material-symbols-outlined ${section.color} text-2xl`}>{section.icon}</span>
+            {sectionBreakdown.map((section) => (
+              <div
+                key={section.label}
+                className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-150 dark:border-gray-800 p-6 hover:shadow-lg transition-all group flex flex-col justify-between"
+              >
+                <div>
+                  <div
+                    className={`w-11 h-11 rounded-xl ${section.bg} ${section.color} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform border border-current/10`}
+                  >
+                    <span className="material-symbols-outlined text-xl">
+                      {section.icon}
+                    </span>
+                  </div>
+                  <p className="font-inter text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-widest">
+                    {section.label}
+                  </p>
+                  <p className="font-hanken text-3xl font-black text-gray-900 dark:text-white mt-1">
+                    {section.score}
+                    <span className="text-base font-semibold text-gray-400 ml-0.5">
+                      %
+                    </span>
+                  </p>
                 </div>
-                <p className="font-inter text-sm text-on-surface-variant mb-1">{section.label}</p>
-                <p className="font-hanken text-3xl font-bold text-primary">{section.score}</p>
-                <div className="mt-3 h-2 bg-surface-container-high rounded-full overflow-hidden">
-                  <div className={`h-full ${section.bg} transition-all duration-1000`} style={{ width: `${section.score}%` }}></div>
+
+                {/* Animated progress bar */}
+                <div className="mt-4 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${section.bar} rounded-full transition-all duration-1000 ease-out`}
+                    style={{ width: barsVisible ? `${section.score}%` : "0%" }}
+                  />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Guidance Section */}
-        <div className={`${levelStyle.bg} rounded-2xl border-2 ${levelStyle.text} border-current/20 p-8 md:p-10`}>
-          <div className="flex items-start gap-4 mb-6">
-            <span className={`material-symbols-outlined ${levelStyle.text} text-4xl`} style={{ fontVariationSettings: "'FILL' 1" }}>
-              lightbulb
-            </span>
-            <div>
-              <h2 className={`font-hanken text-2xl font-bold ${levelStyle.text} mb-2`}>{guidance.title}</h2>
-              <p className={`font-inter ${levelStyle.text} opacity-80`}>{guidance.description}</p>
+        {/* ── Level Description + Guidance ── */}
+        <div
+          className={`rounded-3xl border-2 p-8 md:p-10 space-y-6 ${meta.bg} ${meta.border}`}
+        >
+          <div className={`flex gap-4 items-start ${meta.text}`}>
+            <div className="w-12 h-12 rounded-2xl bg-current/10 border border-current/20 flex items-center justify-center flex-shrink-0">
+              <span
+                className="material-symbols-outlined text-2xl"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                lightbulb
+              </span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-hanken text-2xl font-bold">
+                {guidance.title}
+              </h3>
+              <p className="font-inter text-sm leading-relaxed opacity-90">
+                {guidance.description}
+              </p>
             </div>
           </div>
-          
-          <div className="space-y-3">
-            <p className={`font-hanken text-sm font-bold ${levelStyle.text} uppercase tracking-wider mb-3`}>Rekomendasi Pembelajaran:</p>
-            {guidance.tips.map((tip, idx) => (
-              <div key={idx} className="flex items-start gap-3">
-                <span className={`material-symbols-outlined ${levelStyle.text} text-xl flex-shrink-0 mt-0.5`}>check_circle</span>
-                <p className={`font-inter ${levelStyle.text} opacity-90`}>{tip}</p>
-              </div>
-            ))}
+
+          <div className={`pt-4 border-t border-current/10 ${meta.text}`}>
+            <span className="text-[10px] font-bold uppercase tracking-widest block opacity-60 mb-4">
+              Rekomendasi Studi Anda
+            </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {guidance.tips.map((tip, idx) => (
+                <div key={idx} className="flex gap-3 items-start">
+                  <span
+                    className="material-symbols-outlined text-lg mt-0.5 flex-shrink-0"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    check_circle
+                  </span>
+                  <p className="font-inter text-sm leading-relaxed opacity-90">
+                    {tip}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* CTA Section */}
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
-          <h3 className="font-hanken text-xl font-bold text-primary mb-2">Siap Meningkatkan Kemampuan Anda?</h3>
-          <p className="font-inter text-on-surface-variant mb-6">Akses modul pembelajaran interaktif yang disesuaikan dengan level Anda.</p>
-          <Link href="/student" className="inline-flex items-center gap-2 bg-secondary text-on-secondary font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all group">
-            Mulai Belajar Sekarang
-            <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </Link>
+        {/* ── CTA — Start Learning ── */}
+        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-150 dark:border-gray-800 p-8 md:p-10 shadow-sm">
+          <div className="flex flex-col md:flex-row items-center gap-6 justify-between">
+            <div className="space-y-2 text-center md:text-left">
+              <h3 className="font-hanken text-xl font-bold text-gray-950 dark:text-white">
+                Siap Meningkatkan Kemampuan Bahasa Inggris Anda?
+              </h3>
+              <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed max-w-md">
+                Akses modul pembelajaran mandiri PRISM — Vocabulary, Writing, dan Speaking — yang telah disesuaikan dengan level Anda.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
+              <Link
+                href="/student/vocabulary"
+                className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 text-blue-600 dark:text-blue-400 font-hanken font-bold px-5 py-3 rounded-xl transition-all border border-blue-200/50 text-sm"
+              >
+                <span className="material-symbols-outlined text-lg">style</span>
+                Vocabulary
+              </Link>
+              <Link
+                href="/student/writing"
+                className="inline-flex items-center gap-2 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 text-orange-600 dark:text-orange-400 font-hanken font-bold px-5 py-3 rounded-xl transition-all border border-orange-200/50 text-sm"
+              >
+                <span className="material-symbols-outlined text-lg">
+                  edit_document
+                </span>
+                Writing
+              </Link>
+              <Link
+                href="/student/speaking"
+                className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 text-red-600 dark:text-red-400 font-hanken font-bold px-5 py-3 rounded-xl transition-all border border-red-200/50 text-sm"
+              >
+                <span className="material-symbols-outlined text-lg">
+                  record_voice_over
+                </span>
+                Speaking
+              </Link>
+            </div>
+          </div>
         </div>
       </main>
     </div>
