@@ -17,19 +17,25 @@ export default function AdminSidebar({
   adminName = "Admin PRISM",
   adminEmail = "admin@president.ac.id",
 }: AdminSidebarProps) {
-  const menuItems = [
+  const testItems = [
     { id: "analytics", label: "Analytics & Hasil Tes", icon: "analytics" },
-    { id: "users", label: "Manajemen Pengguna", icon: "group" },
-    { id: "questions", label: "Kelola Bank Soal", icon: "quiz" },
+    { id: "questions", label: "Bank Soal Placement Test", icon: "quiz" },
+  ];
+
+  const studyItems = [
     { id: "vocabulary", label: "Kosa Kata (Vocab)", icon: "style" },
     { id: "writing", label: "Topik Menulis (Writing)", icon: "draw" },
     { id: "speaking", label: "Skenario Bicara (Speaking)", icon: "record_voice_over" },
+  ];
+
+  const systemItems = [
+    { id: "users", label: "Manajemen Pengguna", icon: "group" },
     { id: "logs", label: "Log Aktivitas Sistem", icon: "receipt_long" },
   ];
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-white dark:bg-gray-900 border-r border-gray-150 dark:border-gray-800 h-screen sticky top-0 flex-shrink-0 z-30 justify-between">
-      <div className="p-6 space-y-8">
+      <div className="p-6 space-y-6 overflow-y-auto">
         {/* Logo */}
         <div className="flex items-center gap-2">
           <Logo className="h-10 w-32" />
@@ -37,31 +43,93 @@ export default function AdminSidebar({
         </div>
 
         {/* Navigation Links */}
-        <nav className="space-y-1.5">
-          <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block px-4 mb-2">Main Menu</span>
-          {menuItems.map((item) => {
-            const isActive = activeTab === item.id;
-            const content = (
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}>{item.icon}</span>
-                <span className="text-xs font-semibold">{item.label}</span>
-              </div>
-            );
+        <nav className="space-y-4">
+          {/* Section 1: Placement Test */}
+          <div className="space-y-1">
+            <div className="px-4 mb-2">
+              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block">Placement Test</span>
+              <div className="h-0.5 w-6 bg-blue-500 dark:bg-blue-400 rounded mt-1"></div>
+            </div>
+            {testItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange?.(item.id)}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer ${
+                    isActive 
+                      ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/10" 
+                      : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}>{item.icon}</span>
+                    <span className="text-xs font-semibold">{item.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => onTabChange?.(item.id)}
-                className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer ${
-                  isActive 
-                    ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/10" 
-                    : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
-                }`}
-              >
-                {content}
-              </button>
-            );
-          })}
+          {/* Divider */}
+          <div className="border-b border-gray-150 dark:border-gray-800 mx-2"></div>
+
+          {/* Section 2: Belajar Mandiri */}
+          <div className="space-y-1">
+            <div className="px-4 mb-2">
+              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block">Belajar Mandiri</span>
+              <div className="h-0.5 w-6 bg-emerald-500 dark:bg-emerald-400 rounded mt-1"></div>
+            </div>
+            {studyItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange?.(item.id)}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer ${
+                    isActive 
+                      ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/10" 
+                      : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}>{item.icon}</span>
+                    <span className="text-xs font-semibold">{item.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Divider */}
+          <div className="border-b border-gray-150 dark:border-gray-800 mx-2"></div>
+
+          {/* Section 3: Pengaturan */}
+          <div className="space-y-1">
+            <div className="px-4 mb-2">
+              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block">Pengaturan</span>
+              <div className="h-0.5 w-6 bg-gray-400 dark:bg-gray-600 rounded mt-1"></div>
+            </div>
+            {systemItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange?.(item.id)}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer ${
+                    isActive 
+                      ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/10" 
+                      : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}>{item.icon}</span>
+                    <span className="text-xs font-semibold">{item.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </nav>
       </div>
 
