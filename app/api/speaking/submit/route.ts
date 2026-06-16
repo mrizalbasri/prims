@@ -1,17 +1,34 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { ResponseStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreSpeakingWithAI } from '@/lib/scoring';
-
-
 
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check daily speaking limit (max 5 sessions per day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dailySessionsCount = await prisma.speakingSession.count({
+      where: {
+        userId: user.id,
+        startedAt: {
+          gte: today,
+        },
+      },
+    });
+
+    if (dailySessionsCount >= 5) {
+      return NextResponse.json(
+        { error: 'Batas limit harian tercapai. Anda hanya diperbolehkan mengirimkan latihan speaking 5 kali per hari untuk menghemat penggunaan API AI.' },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();
@@ -43,7 +60,7 @@ export async function POST(request: NextRequest) {
         scenarioId,
         transcriptText,
         audioUrl,
-        durationSec,
+        durationSec: durationSec || 0,
         status: ResponseStatus.PENDING,
         startedAt: new Date(),
       },
@@ -53,10 +70,9 @@ export async function POST(request: NextRequest) {
     await prisma.learningSession.create({
       data: {
         userId: user.id,
-        moduleType: 'speaking',
+        sectionType: 'speaking',
         durationSec: durationSec || 0,
-        completed: false,
-        startedAt: new Date(),
+        completedAt: new Date(),
       },
     });
 
@@ -119,9 +135,9 @@ async function processSpeakingScoring(
     const { score, feedback } = await scoreSpeakingWithAI(transcriptText, promptText, rubric);
 
     // Extract dimension scores from feedback if available
-    const fluencyScore = feedback.fluency ? 75 : score * 0.9;
-    const pronunciationScore = feedback.pronunciation ? 70 : score * 0.85;
-    const grammarScore = feedback.grammar ? 80 : score * 0.95;
+    const fluencyScore = feedback?.fluency ? 75 : score * 0.9;
+    const pronunciationScore = feedback?.pronunciation ? 70 : score * 0.85;
+    const grammarScore = feedback?.grammar ? 80 : score * 0.95;
 
     // Update session with scores
     await prisma.speakingSession.update({

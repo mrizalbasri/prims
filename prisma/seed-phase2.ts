@@ -1,7 +1,6 @@
-import { PrismaClient } from '../app/generated/prisma';
+import 'dotenv/config';
+import prisma from '../lib/prisma';
 import { academicVocabularyCards } from '../lib/vocabulary';
-
-const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting Phase 2 database seed...');

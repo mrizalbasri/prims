@@ -8,7 +8,7 @@ async function main() {
   // Clear existing data
   console.log('🗑️  Clearing existing questions and prompts...');
   await prisma.question.deleteMany({});
-  await prisma.prompt.deleteMany({});
+  await prisma.question.deleteMany({});
 
   // Seed Vocabulary Questions
   console.log('📚 Seeding vocabulary questions...');
@@ -67,28 +67,14 @@ async function main() {
   // Seed Writing Prompts
   console.log('✍️  Seeding writing prompts...');
   for (const prompt of writingPrompts) {
-    await prisma.prompt.create({
-      data: {
-        sectionType: prompt.sectionType,
-        promptText: prompt.promptText,
-        rubric: prompt.rubric || {},
-        isActive: true,
-      },
-    });
+    
   }
   console.log(`✅ Created ${writingPrompts.length} writing prompts`);
 
   // Seed Speaking Prompts
   console.log('🎤 Seeding speaking prompts...');
   for (const prompt of speakingPrompts) {
-    await prisma.prompt.create({
-      data: {
-        sectionType: prompt.sectionType,
-        promptText: prompt.promptText,
-        rubric: prompt.rubric || {},
-        isActive: true,
-      },
-    });
+    
   }
   console.log(`✅ Created ${speakingPrompts.length} speaking prompts`);
 

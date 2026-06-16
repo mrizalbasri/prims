@@ -1,29 +1,24 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreObjectiveAnswer } from '@/lib/scoring';
 
-
-
 interface SaveAnswerRequest {
-  testAttemptId: string;
-  sectionType: SectionType;
-  answers?: Array<{
-    questionId: string;
-    selectedOption: string;
-  }>;
-  writingResponse?: {
-    promptId: string;
-    responseText: string;
-  };
-  speakingResponse?: {
-    promptId: string;
-    transcriptText: string;
-    audioUrl?: string;
-  };
+  answers?: Record<string, string>;
+  writingResponse?: string;
+  speakingResponse?: string;
+  currentSection: "vocabulary" | "grammar" | "reading" | "writing" | "speaking";
 }
+
+const SECTION_TYPE_MAP: Record<string, SectionType> = {
+  vocabulary: SectionType.VOCABULARY,
+  grammar: SectionType.GRAMMAR,
+  reading: SectionType.READING,
+  writing: SectionType.WRITING,
+  speaking: SectionType.SPEAKING,
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,19 +28,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body: SaveAnswerRequest = await request.json();
-    const { testAttemptId, sectionType, answers, writingResponse, speakingResponse } = body;
+    const { answers, writingResponse, speakingResponse, currentSection } = body;
 
-    // Verify test attempt belongs to user
+    if (!currentSection) {
+      return NextResponse.json({ error: 'currentSection is required' }, { status: 400 });
+    }
+
+    const sectionType = SECTION_TYPE_MAP[currentSection.toLowerCase()];
+    if (!sectionType) {
+      return NextResponse.json({ error: `Invalid section: ${currentSection}` }, { status: 400 });
+    }
+
+    // Find user's active test attempt
     const testAttempt = await prisma.testAttempt.findFirst({
       where: {  
-        id: testAttemptId,
         userId: user.id,
+        status: TestAttemptStatus.IN_PROGRESS,
       },
     });
 
     if (!testAttempt) {
       return NextResponse.json(
-        { error: 'Test attempt not found' },
+        { error: 'No active test attempt found' },
         { status: 404 }
       );
     }
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Get section attempt
     const sectionAttempt = await prisma.sectionAttempt.findFirst({
       where: {  
-        testAttemptId,
+        testAttemptId: testAttempt.id,
         sectionType,
       },
     });
@@ -65,82 +69,117 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update section status if not started
-    if (sectionAttempt.status === SectionStatus.NOT_STARTED) {
-      await prisma.sectionAttempt.update({
-        where: {   id: sectionAttempt.id },
-        data: {
-          status: SectionStatus.IN_PROGRESS,
-          startedAt: new Date(),
-        },
-      });
-    }
+    // We handle section status transitions (IN_PROGRESS/COMPLETED) at the end of saving
 
     // Save objective answers (Vocabulary, Grammar, Reading)
-    if (answers && answers.length > 0) {
-      for (const answer of answers) {
-        const { isCorrect, score } = await scoreObjectiveAnswer(
-          sectionAttempt.id,
-          answer.questionId,
-          answer.selectedOption
-        );
+    if (
+      (sectionType === SectionType.VOCABULARY ||
+        sectionType === SectionType.GRAMMAR ||
+        sectionType === SectionType.READING) &&
+      answers &&
+      typeof answers === 'object'
+    ) {
+      for (const [questionId, selectedOption] of Object.entries(answers)) {
+        // Only save answers for the current section type to keep it clean
+        if (questionId.startsWith(sectionType)) {
+          const { isCorrect, score } = await scoreObjectiveAnswer(
+            sectionAttempt.id,
+            questionId,
+            selectedOption
+          );
 
-        await prisma.objectiveAnswer.upsert({
-          where: {  
-            // @ts-ignore
+          await prisma.objectiveAnswer.upsert({
+            where: {  
               sectionAttemptId_questionId: {
-              sectionAttemptId: sectionAttempt.id,
-              questionId: answer.questionId,
+                sectionAttemptId: sectionAttempt.id,
+                questionId: questionId,
+              },
             },
-          },
-          create: {
-            sectionAttemptId: sectionAttempt.id,
-            questionId: answer.questionId,
-            selectedOption: answer.selectedOption,
-            isCorrect,
-            score,
-          },
-          update: {
-            selectedOption: answer.selectedOption,
-            isCorrect,
-            score,
-          },
-        });
+            create: {
+              sectionAttemptId: sectionAttempt.id,
+              questionId: questionId,
+              selectedOption: selectedOption,
+              isCorrect,
+              score,
+            },
+            update: {
+              selectedOption: selectedOption,
+              isCorrect,
+              score,
+            },
+          });
+        }
       }
     }
 
     // Save writing response
-    if (writingResponse) {
+    if (sectionType === SectionType.WRITING && typeof writingResponse === 'string') {
       await prisma.writingResponse.upsert({
-        where: {   sectionAttemptId: sectionAttempt.id },
+        where: { sectionAttemptId: sectionAttempt.id },
         create: {
           sectionAttemptId: sectionAttempt.id,
-          promptId: writingResponse.promptId,
-          responseText: writingResponse.responseText,
-          status: 'PENDING',
+          userId: user.id,
+          content: writingResponse,
         },
         update: {
-          responseText: writingResponse.responseText,
+          content: writingResponse,
         },
       });
     }
 
     // Save speaking response
-    if (speakingResponse) {
+    if (sectionType === SectionType.SPEAKING && typeof speakingResponse === 'string') {
       await prisma.speakingResponse.upsert({
-        where: {   sectionAttemptId: sectionAttempt.id },
+        where: { sectionAttemptId: sectionAttempt.id },
         create: {
           sectionAttemptId: sectionAttempt.id,
-          promptId: speakingResponse.promptId,
-          transcriptText: speakingResponse.transcriptText,
-          audioUrl: speakingResponse.audioUrl,
-          status: 'PENDING',
+          userId: user.id,
+          transcript: speakingResponse,
         },
         update: {
-          transcriptText: speakingResponse.transcriptText,
-          audioUrl: speakingResponse.audioUrl,
+          transcript: speakingResponse,
         },
       });
+    }
+
+    // Mark current section attempt as COMPLETED
+    await prisma.sectionAttempt.update({
+      where: { id: sectionAttempt.id },
+      data: {
+        status: SectionStatus.COMPLETED,
+        endTime: sectionAttempt.endTime || new Date(),
+      },
+    });
+
+    // Mark the next section attempt as IN_PROGRESS
+    const SECTION_ORDER = [
+      SectionType.VOCABULARY,
+      SectionType.GRAMMAR,
+      SectionType.READING,
+      SectionType.WRITING,
+      SectionType.SPEAKING,
+    ];
+    const currentIndex = SECTION_ORDER.indexOf(sectionType);
+    if (currentIndex !== -1 && currentIndex < SECTION_ORDER.length - 1) {
+      const nextSectionType = SECTION_ORDER[currentIndex + 1];
+      const nextSectionAttempt = await prisma.sectionAttempt.findUnique({
+        where: {
+          testAttemptId_sectionType: {
+            testAttemptId: testAttempt.id,
+            sectionType: nextSectionType,
+          },
+        },
+      });
+
+      if (nextSectionAttempt && nextSectionAttempt.status === SectionStatus.NOT_STARTED) {
+        await prisma.sectionAttempt.update({
+          where: { id: nextSectionAttempt.id },
+          data: {
+            status: SectionStatus.IN_PROGRESS,
+            startTime: new Date(),
+          },
+        });
+      }
     }
 
     // Create audit log
@@ -149,7 +188,7 @@ export async function POST(request: NextRequest) {
       'ANSWERS_SAVED',
       'SectionAttempt',
       sectionAttempt.id,
-      { sectionType, answerCount: answers?.length || 0 }
+      { sectionType }
     );
 
     return NextResponse.json(

@@ -1,6 +1,4 @@
 "use client";
-export const dynamic = 'force-dynamic';
-
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -40,23 +38,29 @@ export default function WritingPage() {
 
   useEffect(() => {
     async function loadData() {
-      const [promptsRes, submissionsRes] = await Promise.all([
-        fetch("/api/writing/prompts"),
-        fetch("/api/writing/submissions")
-      ]);
+      try {
+        const [promptsRes, submissionsRes] = await Promise.all([
+          fetch("/api/writing/prompts"),
+          fetch("/api/writing/submissions")
+        ]);
 
-      if (!promptsRes.ok) {
-        if (promptsRes.status === 401) router.push("/login");
+        if (!promptsRes.ok) {
+          if (promptsRes.status === 401) router.push("/login");
+          if (promptsRes.status === 403) router.push("/student");
+          setIsLoading(false);
+          return;
+        }
+
+        const promptsData = await promptsRes.json();
+        const submissionsData = submissionsRes.ok ? await submissionsRes.json() : { submissions: [] };
+
+        setPrompts(promptsData.prompts || []);
+        setSubmissions(submissionsData.submissions || []);
+      } catch (err) {
+        console.error("Failed to load writing data:", err);
+      } finally {
         setIsLoading(false);
-        return;
       }
-
-      const promptsData = await promptsRes.json();
-      const submissionsData = submissionsRes.ok ? await submissionsRes.json() : { submissions: [] };
-
-      setPrompts(promptsData.prompts || []);
-      setSubmissions(submissionsData.submissions || []);
-      setIsLoading(false);
     }
 
     void loadData();
@@ -66,24 +70,31 @@ export default function WritingPage() {
     if (!selectedPrompt || wordCount < selectedPrompt.minWords) return;
 
     setIsSubmitting(true);
-    const res = await fetch("/api/writing/submit", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        promptId: selectedPrompt.id,
-        essay
-      })
-    });
+    try {
+      const res = await fetch("/api/writing/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          promptId: selectedPrompt.id,
+          essay
+        })
+      });
 
-    if (!res.ok) {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Gagal mengirimkan esai.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const data = await res.json();
+      setResult(data.submission);
+      setShowResult(true);
+    } catch (err) {
+      console.error("Submit essay error:", err);
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const data = await res.json();
-    setResult(data.submission);
-    setShowResult(true);
-    setIsSubmitting(false);
   }
 
   function startNewEssay(prompt: WritingPrompt) {
@@ -104,96 +115,108 @@ export default function WritingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-hanken font-bold text-primary">Memuat Writing Practice...</p>
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Memuat Writing Practice...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-        <div className="max-w-container-max mx-auto flex justify-between items-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</Link>
-            <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border border-orange-200">
-              Writing
+            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <span className="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-orange-200/50 dark:border-orange-800/20">
+              Writing Practice
             </span>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setView("prompts")}
-              className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
-                view === "prompts" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-low"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-hanken text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                view === "prompts" ? "bg-orange-600 text-white" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
               }`}
             >
               <span className="material-symbols-outlined text-lg">assignment</span>
-              Prompts
+              <span className="hidden sm:inline">Prompts</span>
             </button>
             <button
               onClick={() => setView("history")}
-              className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
-                view === "history" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-low"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-hanken text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                view === "history" ? "bg-orange-600 text-white" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
               }`}
             >
               <span className="material-symbols-outlined text-lg">history</span>
-              Riwayat
+              <span className="hidden sm:inline">Riwayat</span>
             </button>
-            <Link href="/student" className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium">
-              <span className="material-symbols-outlined">close</span>
+            <Link href="/student" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-2xl">close</span>
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-container-max mx-auto px-margin-mobile md:px-gutter py-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">
+        {/* Prompts list view */}
         {view === "prompts" && (
-          <div>
-            <div className="mb-8">
-              <h1 className="font-hanken text-3xl font-bold text-primary mb-2">Writing Prompts</h1>
-              <p className="font-inter text-on-surface-variant">Pilih topik esai dan mulai berlatih menulis dengan AI feedback.</p>
+          <div className="space-y-8">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Latihan Menulis Esai</span>
+              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Writing Prompts</h1>
+              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
+                Pilih salah satu topik penulisan akademis di bawah untuk berlatih mengekspresikan gagasan dan dapatkan feedback AI.
+              </p>
             </div>
 
             {prompts.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-2xl border-2 border-dashed border-outline-variant p-12 text-center">
-                <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">draw</span>
-                <h2 className="font-hanken text-xl font-bold text-primary mb-2">Belum Ada Prompt</h2>
-                <p className="font-inter text-on-surface-variant">Prompt writing akan tersedia setelah database di-seed.</p>
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
+                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">draw</span>
+                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Topik Penulisan</h2>
+                <p className="font-inter text-sm text-gray-400 dark:text-gray-550 max-w-xs mx-auto">
+                  Prompt menulis belum terisi dalam database saat ini.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {prompts.map((prompt) => (
-                  <div key={prompt.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 hover:shadow-xl hover:border-orange-500/50 transition-all group">
-                    <div className="flex items-start justify-between mb-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                        prompt.level === "Advanced" ? "bg-status-advanced/10 text-status-advanced" :
-                        prompt.level === "Intermediate" ? "bg-status-intermediate/10 text-status-intermediate" :
-                        "bg-status-beginner/10 text-status-beginner"
-                      }`}>
-                        {prompt.level}
-                      </span>
-                      <span className="material-symbols-outlined text-orange-600 text-2xl">draw</span>
+                  <div key={prompt.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-orange-500/40 transition-all flex flex-col justify-between group">
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          prompt.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
+                          prompt.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
+                          "bg-red-50 text-red-600 dark:bg-red-500/10"
+                        }`}>
+                          {prompt.level}
+                        </span>
+                        <span className="material-symbols-outlined text-orange-600">draw</span>
+                      </div>
+                      
+                      <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors">
+                        {prompt.title}
+                      </h3>
+                      <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+                        {prompt.prompt}
+                      </p>
                     </div>
                     
-                    <h3 className="font-hanken text-lg font-bold text-primary mb-3 group-hover:text-orange-600 transition-colors">
-                      {prompt.title}
-                    </h3>
-                    <p className="font-inter text-sm text-on-surface-variant mb-4 line-clamp-3">
-                      {prompt.prompt}
-                    </p>
-                    
-                    <div className="flex items-center justify-between pt-4 border-t border-outline-variant">
-                      <span className="font-inter text-xs text-on-surface-variant">Min. {prompt.minWords} kata</span>
+                    <div className="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
+                      <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                        Min. {prompt.minWords} kata
+                      </span>
                       <button
                         onClick={() => startNewEssay(prompt)}
-                        className="flex items-center gap-2 bg-orange-600 text-white font-hanken text-sm font-bold px-4 py-2 rounded-lg hover:shadow-lg transition-all group"
+                        className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken text-xs font-bold px-4 py-2.5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
                       >
                         Mulai Menulis
-                        <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                        <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
                       </button>
                     </div>
                   </div>
@@ -203,47 +226,46 @@ export default function WritingPage() {
           </div>
         )}
 
+        {/* Essay writing interface */}
         {view === "write" && selectedPrompt && !showResult && (
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-6">
-              <button
-                onClick={resetAndGoBack}
-                className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium mb-4"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-                Kembali ke Prompts
-              </button>
-              
-              <div className="bg-orange-50 border border-orange-200 rounded-2xl p-6 mb-6">
-                <div className="flex items-start gap-3 mb-3">
-                  <span className="material-symbols-outlined text-orange-600 text-2xl">assignment</span>
-                  <div className="flex-1">
-                    <h2 className="font-hanken text-xl font-bold text-primary mb-2">{selectedPrompt.title}</h2>
-                    <p className="font-inter text-sm text-on-surface-variant">{selectedPrompt.prompt}</p>
-                  </div>
+          <div className="max-w-4xl mx-auto space-y-6">
+            <button
+              onClick={resetAndGoBack}
+              className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">arrow_back</span>
+              Kembali ke Prompts
+            </button>
+            
+            <div className="bg-orange-50/50 dark:bg-orange-500/5 border border-orange-200/50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-start gap-4">
+                <span className="material-symbols-outlined text-orange-600 text-3xl p-2 rounded-xl bg-orange-500/10">assignment</span>
+                <div className="flex-1 space-y-1">
+                  <h2 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">{selectedPrompt.title}</h2>
+                  <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{selectedPrompt.prompt}</p>
                 </div>
-                <div className="flex items-center gap-4 text-xs text-on-surface-variant">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">straighten</span>
-                    Min. {selectedPrompt.minWords} kata
-                  </span>
-                  <span className={`px-2 py-1 rounded-full font-bold uppercase tracking-wider ${
-                    selectedPrompt.level === "Advanced" ? "bg-status-advanced/10 text-status-advanced" :
-                    selectedPrompt.level === "Intermediate" ? "bg-status-intermediate/10 text-status-intermediate" :
-                    "bg-status-beginner/10 text-status-beginner"
-                  }`}>
-                    {selectedPrompt.level}
-                  </span>
-                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-gray-450 dark:text-gray-400 pt-3 border-t border-orange-200/30">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base text-gray-400">straighten</span>
+                  Target: Min. {selectedPrompt.minWords} kata
+                </span>
+                <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  selectedPrompt.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
+                  selectedPrompt.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
+                  "bg-red-50 text-red-600 dark:bg-red-500/10"
+                }`}>
+                  {selectedPrompt.level}
+                </span>
               </div>
             </div>
 
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-hanken text-lg font-bold text-primary">Tulis Esai Anda</h3>
+            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+                <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white">Workspace Penulisan</h3>
                 <div className="flex items-center gap-2">
-                  <span className={`font-jetbrains text-sm font-bold ${
-                    wordCount >= selectedPrompt.minWords ? "text-green-600" : "text-on-surface-variant"
+                  <span className={`font-mono text-sm font-bold ${
+                    wordCount >= selectedPrompt.minWords ? "text-green-600" : "text-gray-500"
                   }`}>
                     {wordCount} / {selectedPrompt.minWords} kata
                   </span>
@@ -256,26 +278,26 @@ export default function WritingPage() {
               <textarea
                 value={essay}
                 onChange={(e) => setEssay(e.target.value)}
-                className="w-full min-h-[400px] p-6 rounded-xl border-2 border-outline-variant focus:border-orange-600 focus:ring-0 transition-all font-inter bg-surface-bright resize-none"
-                placeholder="Mulai menulis esai Anda di sini..."
+                className="w-full min-h-[360px] p-6 rounded-2xl border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
+                placeholder="Mulai ketik esai akademik Anda di sini..."
               />
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2">
               <button
                 onClick={() => void handleSubmit()}
                 disabled={isSubmitting || wordCount < selectedPrompt.minWords}
-                className="inline-flex items-center gap-2 bg-orange-600 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Mengirim & Menilai...
+                    Menilai dengan AI...
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined">send</span>
-                    Kirim untuk Dinilai
+                    Kirim & Nilai
                   </>
                 )}
               </button>
@@ -283,85 +305,92 @@ export default function WritingPage() {
           </div>
         )}
 
+        {/* AI response feedback view */}
         {view === "write" && showResult && result && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant p-8 md:p-12 shadow-xl mb-6">
-              <div className="text-center mb-8">
-                <span className="material-symbols-outlined text-6xl text-orange-600 mb-4 inline-block" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn">
+            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 shadow-xl space-y-8 text-center">
+              <div className="space-y-4">
+                <span className="material-symbols-outlined text-6xl text-orange-600 animate-pulse" style={{ fontVariationSettings: "'FILL' 1" }}>
                   grade
                 </span>
-                <h2 className="font-hanken text-3xl font-bold text-primary mb-2">Hasil Penilaian</h2>
-                <div className="inline-flex items-center gap-3 bg-orange-50 px-6 py-3 rounded-full border border-orange-200">
-                  <span className="font-hanken text-4xl font-bold text-orange-600">{result.score}</span>
-                  <span className="font-inter text-sm text-on-surface-variant">/ 100</span>
+                <h2 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Hasil Penilaian Writing</h2>
+                <div className="inline-flex items-center gap-3 bg-orange-50 dark:bg-orange-500/10 px-6 py-3 rounded-full border border-orange-200/50 dark:border-orange-900/30">
+                  <span className="font-hanken text-5xl font-black text-orange-600 dark:text-orange-400">{result.score}</span>
+                  <span className="font-inter text-xs text-gray-400 uppercase tracking-widest font-semibold">/ 100</span>
                 </div>
               </div>
 
-              <div className="bg-surface-container-low rounded-2xl p-6 mb-6">
-                <h3 className="font-hanken text-lg font-bold text-primary mb-4 flex items-center gap-2">
-                  <span className="material-symbols-outlined">feedback</span>
-                  AI Feedback
+              <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 text-left space-y-4">
+                <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-orange-600">feedback</span>
+                  Umpan Balik AI (Indonesia)
                 </h3>
-                <p className="font-inter text-sm text-on-surface-variant leading-relaxed whitespace-pre-line">
+                <div className="font-inter text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750">
                   {result.feedback}
-                </p>
+                </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-4 pt-2">
                 <button
                   onClick={() => startNewEssay(selectedPrompt!)}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-orange-600 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken font-bold px-6 py-3.5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
                 >
                   <span className="material-symbols-outlined">refresh</span>
-                  Coba Lagi
+                  Coba Tulis Lagi
                 </button>
                 <button
                   onClick={resetAndGoBack}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-surface-container-high text-primary font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all border border-outline-variant"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-hanken font-bold px-6 py-3.5 rounded-xl transition-all border border-transparent dark:border-gray-700 cursor-pointer"
                 >
-                  Pilih Prompt Lain
+                  Kembali ke Topik
                 </button>
               </div>
             </div>
           </div>
         )}
 
+        {/* History of submissions view */}
         {view === "history" && (
-          <div>
-            <div className="mb-8">
-              <h1 className="font-hanken text-3xl font-bold text-primary mb-2">Riwayat Submission</h1>
-              <p className="font-inter text-on-surface-variant">Lihat semua esai yang pernah Anda tulis dan nilai yang didapat.</p>
+          <div className="space-y-8">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Rekam Jejak Latihan</span>
+              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Riwayat Submission</h1>
+              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">Lihat seluruh esai yang pernah Anda ajukan beserta skor perkembangan yang diraih.</p>
             </div>
 
             {submissions.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-2xl border-2 border-dashed border-outline-variant p-12 text-center">
-                <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">history</span>
-                <h2 className="font-hanken text-xl font-bold text-primary mb-2">Belum Ada Submission</h2>
-                <p className="font-inter text-on-surface-variant mb-6">Mulai menulis esai pertama Anda untuk melihat riwayat di sini.</p>
-                <button
-                  onClick={() => setView("prompts")}
-                  className="inline-flex items-center gap-2 bg-orange-600 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all"
-                >
-                  Lihat Prompts
-                  <span className="material-symbols-outlined">arrow_forward</span>
-                </button>
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
+                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">history</span>
+                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Submission</h2>
+                <p className="font-inter text-sm text-gray-400 dark:text-gray-500 max-w-xs mx-auto mb-4">
+                  Selesaikan latihan menulis esai pertama Anda untuk melihat riwayat perkembangan di sini.
+                </p>
+                <div>
+                  <button
+                    onClick={() => setView("prompts")}
+                    className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken text-xs font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all cursor-pointer"
+                  >
+                    Cari Topik Menulis
+                    <span className="material-symbols-outlined">arrow_forward</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
                 {submissions.map((sub) => (
-                  <div key={sub.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 hover:shadow-lg transition-all">
+                  <div key={sub.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-md transition-all">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="font-hanken text-lg font-bold text-primary mb-1">{sub.prompt.title}</h3>
-                        <p className="font-inter text-xs text-on-surface-variant">
-                          {new Date(sub.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      <div className="space-y-1 flex-1">
+                        <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">{sub.prompt.title}</h3>
+                        <p className="font-inter text-xs text-gray-450 dark:text-gray-500">
+                          Diserahkan pada {new Date(sub.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB
                         </p>
                       </div>
                       
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 border-l border-gray-100 dark:border-gray-800 pl-0 md:pl-6">
                         <div className="text-center">
-                          <p className="font-jetbrains text-3xl font-bold text-orange-600">{sub.score}</p>
-                          <p className="font-inter text-xs text-on-surface-variant">Skor</p>
+                          <p className="font-mono text-3xl font-black text-orange-600 dark:text-orange-400">{sub.score}</p>
+                          <p className="font-inter text-[9px] uppercase font-bold text-gray-400 tracking-wider">Skor</p>
                         </div>
                       </div>
                     </div>

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // Build filter conditions
-    const userFilter: any = {};
+    const userFilter: any = { role: 'STUDENT' };
     if (cohort) userFilter.cohort = cohort;
     if (major) userFilter.major = major;
     if (search) {
@@ -30,28 +30,22 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Get all completed test attempts with results
-    const testAttempts = await prisma.testAttempt.findMany({
-      where: {
-        status: 'COMPLETED',
-        user: userFilter,
-      },
+    // Get all students matching criteria
+    const students = await prisma.user.findMany({
+      where: userFilter,
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-            major: true,
-            cohort: true,
+        testAttempts: {
+          orderBy: { startedAt: 'desc' },
+          take: 1,
+          include: {
+            finalResult: true,
           },
         },
-        finalResult: true,
       },
       orderBy: [
-        { user: { cohort: 'asc' } },
-        { user: { major: 'asc' } },
-        { user: { fullName: 'asc' } },
+        { cohort: 'asc' },
+        { major: 'asc' },
+        { fullName: 'asc' },
       ],
     });
 
@@ -75,30 +69,49 @@ export async function GET(request: NextRequest) {
       'Proficiency Level',
     ];
 
-    const csvRows = testAttempts.map((attempt: any) => {
-      const sectionScores = attempt.finalResult?.sectionScores
+    const csvRows = students.map((stud: any) => {
+      const attempt = stud.testAttempts?.[0] || null;
+      const rawScores = attempt?.finalResult?.sectionScores
         ? (typeof attempt.finalResult.sectionScores === 'string'
             ? JSON.parse(attempt.finalResult.sectionScores)
             : attempt.finalResult.sectionScores)
         : {};
+      const sectionScores = {
+        vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
+        grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,
+        reading: rawScores.READING ?? rawScores.reading ?? 0,
+        writing: rawScores.WRITING ?? rawScores.writing ?? 0,
+        speaking: rawScores.SPEAKING ?? rawScores.speaking ?? 0,
+      };
+
+      let testStatus = "BELUM_MULAI";
+      if (attempt) {
+        if (attempt.status === "COMPLETED") {
+          testStatus = "SELESAI";
+        } else if (attempt.status === "IN_PROGRESS" || attempt.status === "PROCESSING") {
+          testStatus = "SEDANG_MENGERJAKAN";
+        } else if (attempt.status === "FAILED") {
+          testStatus = "GAGAL";
+        }
+      }
 
       return [
-        attempt.user.id,
-        attempt.user.fullName,
-        attempt.user.email,
-        attempt.user.cohort || '',
-        attempt.user.major || '',
-        attempt.status,
-        attempt.startedAt?.toISOString() || '',
-        attempt.submittedAt?.toISOString() || '',
-        attempt.completedAt?.toISOString() || '',
+        stud.id,
+        stud.fullName,
+        stud.email,
+        stud.cohort || '',
+        stud.major || '',
+        testStatus,
+        attempt?.startedAt?.toISOString() || '',
+        attempt?.submittedAt?.toISOString() || '',
+        attempt?.completedAt?.toISOString() || '',
         typeof sectionScores.vocabulary === 'number' ? sectionScores.vocabulary.toFixed(2) : '0.00',
         typeof sectionScores.grammar === 'number' ? sectionScores.grammar.toFixed(2) : '0.00',
         typeof sectionScores.reading === 'number' ? sectionScores.reading.toFixed(2) : '0.00',
         typeof sectionScores.writing === 'number' ? sectionScores.writing.toFixed(2) : '0.00',
         typeof sectionScores.speaking === 'number' ? sectionScores.speaking.toFixed(2) : '0.00',
-        attempt.finalResult?.overallScore ? attempt.finalResult.overallScore.toFixed(2) : '0.00',
-        attempt.finalResult?.cefrLevel || '',
+        attempt?.finalResult?.overallScore ? attempt.finalResult.overallScore.toFixed(2) : '0.00',
+        attempt?.finalResult?.cefrLevel || '',
       ];
     });
 
@@ -116,7 +129,7 @@ export async function GET(request: NextRequest) {
       'RESULTS_EXPORTED',
       'TestAttempt',
       undefined,
-      { cohort, major, search, count: testAttempts.length }
+      { cohort, major, search, count: students.length }
     );
 
     // Return CSV file

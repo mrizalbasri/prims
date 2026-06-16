@@ -31,7 +31,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Memeriksa sesuatu secara detail untuk memahami atau menjelaskannya',
     exampleSentence: 'Students need to analyze the data before drawing conclusions.',
     pronunciation: '/ˈæn.ə.laɪz/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.MEDIUM,
     metadata: {
       synonyms: ['examine', 'study', 'investigate'],
@@ -44,7 +44,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Penjelasan atau teori yang diusulkan untuk diuji melalui penelitian',
     exampleSentence: 'The researcher proposed a hypothesis about climate change effects.',
     pronunciation: '/haɪˈpɒθ.ə.sɪs/',
-    category: VocabularyCategory.SCIENCE,
+    category: VocabularyCategory.TECHNICAL,
     difficulty: QuestionDifficulty.MEDIUM,
     metadata: {
       synonyms: ['theory', 'proposition', 'assumption'],
@@ -57,7 +57,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Menggabungkan berbagai ide atau informasi untuk membentuk satu kesatuan yang koheren',
     exampleSentence: 'The essay should synthesize information from multiple sources.',
     pronunciation: '/ˈsɪn.θə.saɪz/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.HARD,
     metadata: {
       synonyms: ['combine', 'integrate', 'merge'],
@@ -70,7 +70,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Sistem metode yang digunakan dalam bidang studi atau aktivitas tertentu',
     exampleSentence: 'The research methodology was clearly explained in chapter three.',
     pronunciation: '/ˌmeθ.əˈdɒl.ə.dʒi/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.HARD,
     metadata: {
       synonyms: ['approach', 'procedure', 'technique'],
@@ -83,7 +83,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Cukup besar atau penting untuk diperhatikan atau memiliki efek',
     exampleSentence: 'The study found a significant correlation between the variables.',
     pronunciation: '/sɪɡˈnɪf.ɪ.kənt/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.EASY,
     metadata: {
       synonyms: ['important', 'notable', 'considerable'],
@@ -97,7 +97,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Melaksanakan atau menerapkan rencana, keputusan, atau sistem',
     exampleSentence: 'The university will implement the new policy next semester.',
     pronunciation: '/ˈɪm.plɪ.ment/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.MEDIUM,
     metadata: {
       synonyms: ['execute', 'apply', 'carry out'],
@@ -110,7 +110,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Model atau pola yang khas dalam suatu bidang ilmu atau pemikiran',
     exampleSentence: 'The research represents a shift in the scientific paradigm.',
     pronunciation: '/ˈpær.ə.daɪm/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.HARD,
     metadata: {
       synonyms: ['model', 'framework', 'pattern'],
@@ -123,7 +123,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Berdasarkan pada observasi atau pengalaman daripada teori atau logika murni',
     exampleSentence: 'The conclusion is supported by empirical evidence.',
     pronunciation: '/ɪmˈpɪr.ɪ.kəl/',
-    category: VocabularyCategory.SCIENCE,
+    category: VocabularyCategory.TECHNICAL,
     difficulty: QuestionDifficulty.HARD,
     metadata: {
       synonyms: ['experimental', 'observed', 'practical'],
@@ -137,7 +137,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Standar atau prinsip yang digunakan untuk menilai atau memutuskan sesuatu',
     exampleSentence: 'The selection criteria for the program are clearly stated.',
     pronunciation: '/kraɪˈtɪə.ri.ə/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.MEDIUM,
     metadata: {
       synonyms: ['standards', 'requirements', 'guidelines'],
@@ -150,7 +150,7 @@ export const academicVocabularyCards: VocabularyCardData[] = [
     meaning: 'Lengkap dan mencakup semua atau hampir semua elemen atau aspek',
     exampleSentence: 'The textbook provides a comprehensive overview of the subject.',
     pronunciation: '/ˌkɒm.prɪˈhen.sɪv/',
-    category: VocabularyCategory.ACADEMIC_GENERAL,
+    category: VocabularyCategory.ACADEMIC,
     difficulty: QuestionDifficulty.MEDIUM,
     metadata: {
       synonyms: ['complete', 'thorough', 'extensive'],

@@ -1,11 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { ResponseStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI } from '@/lib/scoring';
-
-
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,12 +12,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check daily submission limit (max 3 submissions per day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dailySubmissionsCount = await prisma.writingSubmission.count({
+      where: {
+        userId: user.id,
+        submittedAt: {
+          gte: today,
+        },
+      },
+    });
+
+    if (dailySubmissionsCount >= 3) {
+      return NextResponse.json(
+        { error: 'Batas limit harian tercapai. Anda hanya diperbolehkan mengirimkan latihan menulis 3 kali per hari untuk menghemat penggunaan API AI.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
-    const { promptId, responseText } = body;
+    const { promptId, essay: responseText } = body;
 
     if (!promptId || !responseText) {
       return NextResponse.json(
-        { error: 'promptId and responseText are required' },
+        { error: 'promptId and essay are required' },
         { status: 400 }
       );
     }
@@ -37,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate word count
-    const wordCount = responseText.trim().split(/\s+/).length;
+    const wordCount = responseText.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
 
     // Create submission
     const submission = await prisma.writingSubmission.create({
@@ -54,10 +71,9 @@ export async function POST(request: NextRequest) {
     await prisma.learningSession.create({
       data: {
         userId: user.id,
-        moduleType: 'writing',
+        sectionType: 'writing',
         durationSec: 0, // Will be updated when scoring completes
-        completed: false,
-        startedAt: new Date(),
+        completedAt: new Date(),
       },
     });
 
@@ -114,9 +130,9 @@ async function processWritingScoring(
     const { score, feedback } = await scoreWritingWithAI(responseText, promptText, rubric);
 
     // Extract dimension scores from feedback if available
-    const grammarScore = feedback.grammar ? 75 : score * 0.9; // Fallback calculation
-    const clarityScore = feedback.content ? 80 : score * 0.95;
-    const structureScore = feedback.organization ? 70 : score * 0.85;
+    const grammarScore = feedback?.grammar ? 75 : score * 0.9; // Fallback calculation
+    const clarityScore = feedback?.content ? 80 : score * 0.95;
+    const structureScore = feedback?.organization ? 70 : score * 0.85;
 
     // Update submission with scores
     await prisma.writingSubmission.update({
@@ -128,6 +144,7 @@ async function processWritingScoring(
         structureScore,
         overallScore: score,
         status: ResponseStatus.COMPLETED,
+        completedAt: new Date(),
       },
     });
   } catch (error) {

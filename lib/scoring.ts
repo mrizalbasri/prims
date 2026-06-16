@@ -1,14 +1,14 @@
-import { SectionType } from '@prisma/client';
-import prisma from '@/lib/prisma';
+import { SectionType } from "@prisma/client";
+import prisma from "@/lib/prisma";
 
 /**
  * Scoring weights as per SRS requirements
  */
 export const SECTION_WEIGHTS = {
-  VOCABULARY: 0.20,
-  GRAMMAR: 0.20,
+  VOCABULARY: 0.2,
+  GRAMMAR: 0.2,
   READING: 0.25,
-  WRITING: 0.20,
+  WRITING: 0.2,
   SPEAKING: 0.15,
 };
 
@@ -16,20 +16,20 @@ export const SECTION_WEIGHTS = {
  * Time limits in seconds as per SRS requirements
  */
 export const TIME_LIMITS = {
-  VOCABULARY: 480,  // 8 minutes
-  GRAMMAR: 480,     // 8 minutes
-  READING: 720,     // 12 minutes
-  WRITING: 600,     // 10 minutes
-  SPEAKING: 420,    // 7 minutes
+  VOCABULARY: 480, // 8 minutes
+  GRAMMAR: 480, // 8 minutes
+  READING: 720, // 12 minutes
+  WRITING: 600, // 10 minutes
+  SPEAKING: 420, // 7 minutes
 };
 
 /**
  * Proficiency level thresholds
  */
 export enum ProficiencyLevel {
-  BEGINNER = 'BEGINNER',      // 0-49
-  INTERMEDIATE = 'INTERMEDIATE', // 50-74
-  ADVANCED = 'ADVANCED',      // 75-100
+  BEGINNER = "BEGINNER", // 0-49
+  INTERMEDIATE = "INTERMEDIATE", // 50-74
+  ADVANCED = "ADVANCED", // 75-100
 }
 
 /**
@@ -42,17 +42,48 @@ export function getProficiencyLevel(totalScore: number): ProficiencyLevel {
 }
 
 /**
+ * Map total score to CEFR level
+ */
+export function getCefrLevel(totalScore: number): string {
+  if (totalScore < 30) return 'A1';
+  if (totalScore < 50) return 'A2';
+  if (totalScore < 60) return 'B1';
+  if (totalScore < 75) return 'B2';
+  if (totalScore < 90) return 'C1';
+  return 'C2';
+}
+
+/**
  * Calculate raw score for objective section (Vocabulary, Grammar, Reading)
  */
-export async function calculateObjectiveScore(sectionAttemptId: string): Promise<number> {
+export async function calculateObjectiveScore(
+  sectionAttemptId: string,
+): Promise<number> {
+  const sectionAttempt = await prisma.sectionAttempt.findUnique({
+    where: { id: sectionAttemptId },
+  });
+
+  if (!sectionAttempt) return 0;
+
   const answers = await prisma.objectiveAnswer.findMany({
     where: { sectionAttemptId },
   });
 
-  if (answers.length === 0) return 0;
+  let totalQuestions = 15; // default fallback
+  if (sectionAttempt.feedback) {
+    try {
+      const parsed = JSON.parse(sectionAttempt.feedback);
+      if (parsed.questions && Array.isArray(parsed.questions)) {
+        totalQuestions = parsed.questions.length;
+      }
+    } catch (e) {
+      console.error("Error parsing feedback for totalQuestions:", e);
+    }
+  }
+
+  if (totalQuestions === 0) return 0;
 
   const correctCount = answers.filter((a: any) => a.isCorrect).length;
-  const totalQuestions = answers.length;
 
   // Raw score is percentage (0-100)
   return (correctCount / totalQuestions) * 100;
@@ -61,7 +92,10 @@ export async function calculateObjectiveScore(sectionAttemptId: string): Promise
 /**
  * Calculate weighted score for a section
  */
-export function calculateWeightedScore(rawScore: number, sectionType: SectionType): number {
+export function calculateWeightedScore(
+  rawScore: number,
+  sectionType: SectionType,
+): number {
   const weight = SECTION_WEIGHTS[sectionType];
   return rawScore * weight;
 }
@@ -93,15 +127,23 @@ export function calculateTotalScore(scores: SectionScores): number {
 export async function scoreObjectiveAnswer(
   sectionAttemptId: string,
   questionId: string,
-  selectedOption: string
+  selectedOption: string,
 ): Promise<{ isCorrect: boolean; score: number }> {
-  // Get the question to check correct answer
-  const question = await prisma.question.findUnique({
-    where: { id: questionId },
+  // Get the section attempt to read feedback JSON
+  const sectionAttempt = await prisma.sectionAttempt.findUnique({
+    where: { id: sectionAttemptId },
   });
 
+  if (!sectionAttempt || !sectionAttempt.feedback) {
+    throw new Error("Section attempt or questions not found");
+  }
+
+  const feedbackJson = JSON.parse(sectionAttempt.feedback);
+  const questions = feedbackJson.questions || [];
+  const question = questions.find((q: any) => q.id === questionId);
+
   if (!question) {
-    throw new Error('Question not found');
+    throw new Error(`Question ${questionId} not found in section attempt`);
   }
 
   const isCorrect = selectedOption === question.correctAnswer;
@@ -110,20 +152,107 @@ export async function scoreObjectiveAnswer(
   return { isCorrect, score };
 }
 
+function parseAiJson(text: string): { score: number; feedback: any } {
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("Failed to parse AI response");
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  return {
+    score: Math.min(100, Math.max(0, Number(parsed.score || 0))),
+    feedback: parsed.feedback,
+  };
+}
+
+async function runGeminiScoringWithFallback(
+  scoringPrompt: string,
+  preferredModel: string,
+  fallbackModel = "gemini-2.5-flash",
+): Promise<{ score: number; feedback: any }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing");
+  }
+
+  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  try {
+    const primary = genAI.getGenerativeModel({ model: preferredModel });
+    const primaryResult = await primary.generateContent(scoringPrompt);
+    const primaryText = primaryResult.response.text();
+    return parseAiJson(primaryText);
+  } catch (primaryError) {
+    // If requested model is a Live model and not compatible with text endpoint,
+    // fallback to a stable text model while preserving feature availability.
+    console.warn("Primary model failed, trying fallback model", {
+      preferredModel,
+      fallbackModel,
+      primaryError,
+    });
+
+    const fallback = genAI.getGenerativeModel({ model: fallbackModel });
+    const fallbackResult = await fallback.generateContent(scoringPrompt);
+    const fallbackText = fallbackResult.response.text();
+    const parsed = parseAiJson(fallbackText);
+
+    return {
+      score: parsed.score,
+      feedback: {
+        ...parsed.feedback,
+        modelFallback: {
+          requested: preferredModel,
+          used: fallbackModel,
+        },
+      },
+    };
+  }
+}
+async function runMiniMaxScoring(
+  scoringPrompt: string,
+  modelName: string,
+): Promise<{ score: number; feedback: any }> {
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    throw new Error("MINIMAX_API_KEY is missing");
+  }
+  const baseUrl = process.env.MINIMAX_BASE_URL || "https://api.tokenrouter.com/v1";
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelName,
+      messages: [
+        { role: "user", content: scoringPrompt }
+      ],
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`MiniMax API failed: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const text = data.choices[0].message.content;
+  return parseAiJson(text);
+}
+
 /**
- * AI Scoring for Writing (using Google Gemini)
+ * AI Scoring for Writing (using MiniMax first, fallback to Google Gemini)
  */
 export async function scoreWritingWithAI(
   responseText: string,
   promptText: string,
-  rubric?: any
+  rubric?: any,
 ): Promise<{ score: number; feedback: any }> {
-  try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-    const scoringPrompt = `
+  const scoringPrompt = `
 You are an English language assessment expert. Score the following student writing response.
 
 PROMPT:
@@ -133,7 +262,7 @@ STUDENT RESPONSE:
 ${responseText}
 
 RUBRIC:
-${rubric ? JSON.stringify(rubric, null, 2) : 'Standard academic writing criteria'}
+${rubric ? JSON.stringify(rubric, null, 2) : "Standard academic writing criteria"}
 
 Please evaluate the response and provide:
 1. A score from 0-100
@@ -157,50 +286,53 @@ Return your response in JSON format:
 }
 `;
 
-    const result = await model.generateContent(scoringPrompt);
-    const response = await result.response;
-    const text = response.text();
-
-    // Parse JSON response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to parse AI response');
+  try {
+    // 1. Try MiniMax (TokenRouter) first for Writing
+    if (process.env.MINIMAX_API_KEY) {
+      try {
+        const modelName = process.env.MINIMAX_MODEL || "MiniMax-M3";
+        return await runMiniMaxScoring(scoringPrompt, modelName);
+      } catch (minimaxError) {
+        console.warn("Writing assessment: MiniMax failed, trying Gemini as fallback...", minimaxError);
+      }
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      score: Math.min(100, Math.max(0, parsed.score)),
-      feedback: parsed.feedback,
-    };
+    // 2. Fallback to Gemini
+    if (process.env.GEMINI_API_KEY) {
+      const modelName = process.env.GEMINI_WRITING_MODEL || "gemini-2.5-flash";
+      return await runGeminiScoringWithFallback(
+        scoringPrompt,
+        modelName,
+        "gemini-2.5-flash",
+      );
+    }
+
+    throw new Error("No AI API keys configured");
   } catch (error) {
-    console.error('AI scoring error:', error);
+    console.error("AI scoring error:", error);
     // Fallback: basic length-based scoring
     const wordCount = responseText.trim().split(/\s+/).length;
     const score = Math.min(100, (wordCount / 150) * 70); // Basic scoring
     return {
       score,
       feedback: {
-        error: 'AI scoring unavailable, using basic scoring',
-        message: 'Penilaian otomatis tidak tersedia. Skor dasar berdasarkan panjang teks.',
+        error: "AI scoring unavailable, using basic scoring",
+        message:
+          "Penilaian otomatis tidak tersedia. Skor dasar berdasarkan panjang teks.",
       },
     };
   }
 }
 
 /**
- * AI Scoring for Speaking (using Google Gemini)
+ * AI Scoring for Speaking (using Google Gemini first, fallback to MiniMax)
  */
 export async function scoreSpeakingWithAI(
   transcriptText: string,
   promptText: string,
-  rubric?: any
+  rubric?: any,
 ): Promise<{ score: number; feedback: any }> {
-  try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-    const scoringPrompt = `
+  const scoringPrompt = `
 You are an English language speaking assessment expert. Score the following student speaking response based on the transcript.
 
 PROMPT:
@@ -210,7 +342,7 @@ STUDENT TRANSCRIPT:
 ${transcriptText}
 
 RUBRIC:
-${rubric ? JSON.stringify(rubric, null, 2) : 'Standard speaking assessment criteria'}
+${rubric ? JSON.stringify(rubric, null, 2) : "Standard speaking assessment criteria"}
 
 Please evaluate the response and provide:
 1. A score from 0-100
@@ -234,31 +366,41 @@ Return your response in JSON format:
 }
 `;
 
-    const result = await model.generateContent(scoringPrompt);
-    const response = await result.response;
-    const text = response.text();
-
-    // Parse JSON response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to parse AI response');
+  try {
+    // 1. Try Gemini (Native Audio Dialog) first for Speaking
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const modelName =
+          process.env.GEMINI_SPEAKING_MODEL ||
+          "gemini-2.5-flash-native-audio-dialog";
+        return await runGeminiScoringWithFallback(
+          scoringPrompt,
+          modelName,
+          "gemini-2.5-flash",
+        );
+      } catch (geminiError) {
+        console.warn("Speaking assessment: Gemini failed, trying MiniMax as fallback...", geminiError);
+      }
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      score: Math.min(100, Math.max(0, parsed.score)),
-      feedback: parsed.feedback,
-    };
+    // 2. Fallback to MiniMax
+    if (process.env.MINIMAX_API_KEY) {
+      const modelName = process.env.MINIMAX_MODEL || "MiniMax-M3";
+      return await runMiniMaxScoring(scoringPrompt, modelName);
+    }
+
+    throw new Error("No AI API keys configured");
   } catch (error) {
-    console.error('AI scoring error:', error);
+    console.error("AI scoring error:", error);
     // Fallback: basic length-based scoring
     const wordCount = transcriptText.trim().split(/\s+/).length;
     const score = Math.min(100, (wordCount / 100) * 70); // Basic scoring
     return {
       score,
       feedback: {
-        error: 'AI scoring unavailable, using basic scoring',
-        message: 'Penilaian otomatis tidak tersedia. Skor dasar berdasarkan panjang transkrip.',
+        error: "AI scoring unavailable, using basic scoring",
+        message:
+          "Penilaian otomatis tidak tersedia. Skor dasar berdasarkan panjang transkrip.",
       },
     };
   }
@@ -267,7 +409,9 @@ Return your response in JSON format:
 /**
  * Process and finalize test results
  */
-export async function finalizeTestResults(testAttemptId: string): Promise<void> {
+export async function finalizeTestResults(
+  testAttemptId: string,
+): Promise<void> {
   // Get all section attempts
   const sectionAttempts = await prisma.sectionAttempt.findMany({
     where: { testAttemptId },
@@ -291,11 +435,11 @@ export async function finalizeTestResults(testAttemptId: string): Promise<void> 
       // Objective sections
       rawScore = await calculateObjectiveScore(section.id);
     } else if (section.sectionType === SectionType.WRITING) {
-      // Writing section
-      rawScore = section.writingResponse?.score || 0;
+      // Score already set by processAIScoring into SectionAttempt.rawScore
+      rawScore = section.rawScore;
     } else if (section.sectionType === SectionType.SPEAKING) {
-      // Speaking section
-      rawScore = section.speakingResponse?.score || 0;
+      // Score already set by processAIScoring into SectionAttempt.rawScore
+      rawScore = section.rawScore;
     }
 
     // Update section with scores
@@ -326,22 +470,22 @@ export async function finalizeTestResults(testAttemptId: string): Promise<void> 
     where: { testAttemptId },
     create: {
       testAttemptId,
-      vocabScore: scores[SectionType.VOCABULARY] || 0,
-      grammarScore: scores[SectionType.GRAMMAR] || 0,
-      readingScore: scores[SectionType.READING] || 0,
-      writingScore: scores[SectionType.WRITING] || 0,
-      speakingScore: scores[SectionType.SPEAKING] || 0,
-      totalScore,
-      level: level as any,
+        userId: (await prisma.testAttempt.findUnique({where: {id: testAttemptId}}))?.userId || "",
+      
+      
+      
+      
+      
+      overallScore: totalScore,
+      sectionScores: scores as any,
+      overallLevel: level as any,
+      cefrLevel: getCefrLevel(totalScore),
     },
     update: {
-      vocabScore: scores[SectionType.VOCABULARY] || 0,
-      grammarScore: scores[SectionType.GRAMMAR] || 0,
-      readingScore: scores[SectionType.READING] || 0,
-      writingScore: scores[SectionType.WRITING] || 0,
-      speakingScore: scores[SectionType.SPEAKING] || 0,
-      totalScore,
-      level: level as any,
+      overallScore: totalScore,
+      sectionScores: scores as any,
+      overallLevel: level as any,
+      cefrLevel: getCefrLevel(totalScore),
     },
   });
 
@@ -349,7 +493,7 @@ export async function finalizeTestResults(testAttemptId: string): Promise<void> 
   await prisma.testAttempt.update({
     where: { id: testAttemptId },
     data: {
-      status: 'COMPLETED',
+      status: "COMPLETED",
       completedAt: new Date(),
     },
   });

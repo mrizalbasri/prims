@@ -36,8 +36,7 @@ export async function GET(request: NextRequest) {
           cadence: preference.cadence,
           channel: preference.channel,
           timeOfDay: preference.timeOfDay,
-          timezone: preference.timezone,
-        },
+          },
       },
       { status: 200 }
     );
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { isActive, cadence, channel, timeOfDay, timezone } = body;
+    const { isActive, cadence, channel, timeOfDay } = body;
 
     // Validate cadence
     if (cadence && !Object.values(ReminderCadence).includes(cadence)) {
@@ -94,15 +93,13 @@ export async function POST(request: NextRequest) {
         cadence: cadence || ReminderCadence.DAILY,
         channel: channel || ReminderChannel.EMAIL,
         timeOfDay: timeOfDay || '09:00',
-        timezone: timezone || 'Asia/Jakarta',
-      },
+        },
       update: {
         isActive: isActive !== undefined ? isActive : undefined,
         cadence: cadence || undefined,
         channel: channel || undefined,
         timeOfDay: timeOfDay || undefined,
-        timezone: timezone || undefined,
-      },
+        },
     });
 
     await createAuditLog(
@@ -121,8 +118,7 @@ export async function POST(request: NextRequest) {
           cadence: preference.cadence,
           channel: preference.channel,
           timeOfDay: preference.timeOfDay,
-          timezone: preference.timezone,
-        },
+          },
       },
       { status: 200 }
     );

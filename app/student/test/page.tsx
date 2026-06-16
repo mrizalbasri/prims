@@ -45,8 +45,72 @@ export default function StudentTestPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
 
   const currentSection = sections[sectionIndex];
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+        
+        rec.onresult = (event: any) => {
+          let finalTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript + " ";
+            }
+          }
+          if (finalTranscript) {
+            setSpeakingResponse(prev => prev + finalTranscript);
+          }
+        };
+
+        rec.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+          if (event.error === 'not-allowed') {
+            alert("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
+          } else if (event.error === 'no-speech') {
+            alert("Tidak ada suara yang terdeteksi. Silakan coba berbicara lebih dekat ke mikrofon atau berbicara lebih keras.");
+          } else if (event.error === 'audio-capture') {
+            alert("Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon Anda terhubung dengan benar dan aktif.");
+          } else {
+            alert(`Gagal merekam suara: ${event.error}. Silakan coba lagi atau ketik jawaban langsung sebagai alternatif.`);
+          }
+        };
+
+        rec.onend = () => {
+          setIsRecording(false);
+        };
+
+        setRecognition(rec);
+      }
+    }
+  }, []);
+
+  function toggleSpeechRecording() {
+    if (!recognition) {
+      alert("Browser Anda tidak mendukung perekaman suara otomatis (Speech-to-Text). Silakan ketik langsung tanggapan Anda.");
+      return;
+    }
+    if (isRecording) {
+      recognition.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognition.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Failed to start speech recognition:", err);
+      }
+    }
+  }
 
   useEffect(() => {
     async function bootstrap(): Promise<void> {
@@ -66,13 +130,14 @@ export default function StudentTestPage() {
           return;
         }
 
-        const data = (await stateRes.json()) as StatePayload;
+        const data = (await stateRes.json()) as StatePayload & { activeSectionIndex?: number };
+        const activeIdx = data.activeSectionIndex ?? 0;
         setSections(data.sections);
         setAnswers(data.attempt?.answers ?? {});
         setWritingResponse(data.attempt?.writingResponse ?? "");
         setSpeakingResponse(data.attempt?.speakingResponse ?? "");
-        setSectionIndex(0);
-        setTimeLeft((data.sections[0]?.durationMinutes ?? 0) * 60);
+        setSectionIndex(activeIdx);
+        setTimeLeft((data.sections[activeIdx]?.durationMinutes ?? 0) * 60);
       } catch (err) {
         console.error("Test bootstrap error:", err);
         setError("Gagal memuat tes penempatan.");
@@ -88,6 +153,24 @@ export default function StudentTestPage() {
     if (sections.length === 0) return 0;
     return Math.round(((sectionIndex + 1) / sections.length) * 100);
   }, [sectionIndex, sections.length]);
+
+  const isSectionComplete = useMemo((): boolean => {
+    if (!currentSection) return false;
+
+    if (currentSection.section === "writing") {
+      return writingResponse.trim().length > 0;
+    }
+
+    if (currentSection.section === "speaking") {
+      return speakingResponse.trim().length > 0;
+    }
+
+    // Multiple choice sections
+    return currentSection.questions.every((q) => {
+      const ans = answers[q.id];
+      return ans !== undefined && ans !== null && ans.trim().length > 0;
+    });
+  }, [currentSection, answers, writingResponse, speakingResponse]);
 
   const persist = useCallback(
     async (sectionOverride?: Section["section"]): Promise<void> => {
@@ -119,7 +202,7 @@ export default function StudentTestPage() {
       const nextIndex = sectionIndex + 1;
       const nextSection = sections[nextIndex];
 
-      await persist(nextSection?.section);
+      await persist(currentSection.section);
 
       if (!nextSection) {
         const confirmSubmit = fromTimeout
@@ -226,8 +309,10 @@ export default function StudentTestPage() {
             </div>
             
             <button 
+              disabled={!isSectionComplete}
               onClick={() => void moveNext(false)}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
+              className="bg-teal-600 hover:bg-teal-700 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              title={!isSectionComplete ? "Jawab semua pertanyaan untuk lanjut" : undefined}
             >
               {sectionIndex + 1 === sections.length ? "Kirim Ujian" : "Lanjut Seksi"}
             </button>
@@ -336,22 +421,41 @@ export default function StudentTestPage() {
                 {/* Speaking Audio Recorder */}
                 {currentSection.section === "speaking" && (
                   <div className="pl-0 md:pl-12 space-y-6">
-                    <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
-                      <span className="material-symbols-outlined text-5xl text-red-500">mic</span>
-                      <p className="font-hanken font-bold text-gray-800 dark:text-white">Rekam Tanggapan Lisan</p>
+                    <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-250 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
+                      <div className="relative">
+                        {isRecording && (
+                          <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150"></div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={toggleSpeechRecording}
+                          className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 cursor-pointer ${
+                            isRecording 
+                              ? "bg-red-600 text-white" 
+                              : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isRecording ? "'FILL' 1" : undefined }}>
+                            {isRecording ? "stop" : "mic"}
+                          </span>
+                        </button>
+                      </div>
+                      <p className="font-hanken font-bold text-gray-800 dark:text-white">
+                        {isRecording ? "Sedang Merekam... Bicaralah Sekarang" : "Klik untuk Rekam Suara"}
+                      </p>
                       <p className="font-inter text-xs text-gray-400 dark:text-gray-500 text-center max-w-xs leading-relaxed">
-                        Gunakan mikrofon yang berfungsi dengan baik. Ucapkan kalimat di atas dengan lantang dan jelas.
+                        Gunakan mikrofon yang berfungsi dengan baik. Ucapkan kalimat di atas dengan lantang dan jelas dalam bahasa Inggris.
                       </p>
                       
                       <div className="w-full space-y-1.5 pt-2">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
-                          Atau Salin/Ketik Transkrip Suara (Fallback)
+                          Transkrip Suara (Bisa Diedit Manual)
                         </span>
                         <textarea
                           value={speakingResponse}
                           onChange={(e) => setSpeakingResponse(e.target.value)}
                           className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 font-inter text-xs text-gray-900 dark:text-white resize-none h-24 focus:outline-none focus:ring-2 focus:ring-red-500/20 leading-relaxed"
-                          placeholder="Masukkan teks transkrip rekaman suara Anda jika tidak dapat melakukan perekaman langsung..."
+                          placeholder="Hasil rekaman suara akan otomatis terketik di sini, atau Anda bisa mengetiknya langsung jika mikrofon tidak aktif..."
                         />
                       </div>
                     </div>

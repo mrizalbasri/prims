@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
-import { scoreWritingWithAI, scoreSpeakingWithAI, finalizeTestResults } from '@/lib/scoring';
-
-
+import { scoreWritingWithAI, scoreSpeakingWithAI, finalizeTestResults, calculateWeightedScore } from '@/lib/scoring';
 
 interface SubmitTestRequest {
-  testAttemptId: string;
+  testAttemptId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -18,31 +16,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body: SubmitTestRequest = await request.json();
-    const { testAttemptId } = body;
+    let testAttemptId: string | undefined;
+    try {
+      const body: SubmitTestRequest = await request.json();
+      testAttemptId = body?.testAttemptId;
+    } catch (e) {
+      // Body might be empty
+    }
 
-    // Verify test attempt belongs to user
-    const testAttempt = await prisma.testAttempt.findFirst({
-      where: {
-        id: testAttemptId,
-        userId: user.id,
-      },
-      include: {
-        sectionAttempts: {
-          include: {
-            writingResponse: true,
-            speakingResponse: true,
+    let testAttempt;
+    if (testAttemptId) {
+      testAttempt = await prisma.testAttempt.findFirst({
+        where: {
+          id: testAttemptId,
+          userId: user.id,
+        },
+        include: {
+          sectionAttempts: {
+            include: {
+              writingResponse: true,
+              speakingResponse: true,
+            },
           },
         },
-      },
-    });
+      });
+    } else {
+      // Find active test attempt
+      testAttempt = await prisma.testAttempt.findFirst({
+        where: {
+          userId: user.id,
+          status: TestAttemptStatus.IN_PROGRESS,
+        },
+        include: {
+          sectionAttempts: {
+            include: {
+              writingResponse: true,
+              speakingResponse: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!testAttempt) {
       return NextResponse.json(
-        { error: 'Test attempt not found' },
+        { error: 'Active test attempt not found' },
         { status: 404 }
       );
     }
+
+    testAttemptId = testAttempt.id;
 
     // Check if already submitted
     if (testAttempt.status === TestAttemptStatus.SUBMITTED || 
@@ -60,7 +83,7 @@ export async function POST(request: NextRequest) {
           where: { id: section.id },
           data: {
             status: SectionStatus.COMPLETED,
-            endedAt: new Date(),
+            endTime: new Date(),
           },
         });
       }
@@ -125,86 +148,93 @@ async function processAIScoring(testAttemptId: string): Promise<void> {
 
     if (!testAttempt) return;
 
-    // Score writing responses
+    // Score writing and speaking responses
     for (const section of testAttempt.sectionAttempts) {
-      if (section.writingResponse && section.writingResponse.status === ResponseStatus.PENDING) {
+      if (section.sectionType === SectionType.WRITING && section.writingResponse && section.writingResponse.content) {
         try {
-          // Get prompt details
-          const prompt = await prisma.prompt.findUnique({
-            where: { id: section.writingResponse.promptId },
-          });
+          // Parse prompt details from section.feedback JSON
+          let promptText = "Respond to the prompt.";
+          let rubric = null;
+          if (section.feedback) {
+            try {
+              const fb = JSON.parse(section.feedback);
+              promptText = fb.prompt || promptText;
+              rubric = fb.rubric || null;
+            } catch (e) {
+              console.error('Failed to parse writing section feedback:', e);
+            }
+          }
 
-          if (prompt) {
-            // Update status to processing
-            await prisma.writingResponse.update({
-              where: { id: section.writingResponse.id },
-              data: { status: ResponseStatus.PROCESSING },
-            });
+          // Score with AI
+          const { score, feedback } = await scoreWritingWithAI(
+            section.writingResponse.content,
+            promptText,
+            rubric
+          );
 
-            // Score with AI
-            const { score, feedback } = await scoreWritingWithAI(
-              section.writingResponse.responseText,
-              prompt.promptText,
-              prompt.rubric
-            );
-
-            // Update with score and feedback
-            await prisma.writingResponse.update({
+          // Update section attempt score & writing response feedback
+          await prisma.$transaction([
+            prisma.sectionAttempt.update({
+              where: { id: section.id },
+              data: {
+                rawScore: score,
+                weightedScore: calculateWeightedScore(score, SectionType.WRITING),
+              },
+            }),
+            prisma.writingResponse.update({
               where: { id: section.writingResponse.id },
               data: {
-                score,
-                aiFeedbackJson: feedback,
-                status: ResponseStatus.COMPLETED,
+                feedback: feedback as any,
+                wordCount: section.writingResponse.content.trim().split(/\s+/).length,
               },
-            });
-          }
+            }),
+          ]);
         } catch (error) {
           console.error('Writing scoring error:', error);
-          await prisma.writingResponse.update({
-            where: { id: section.writingResponse.id },
-            data: { status: ResponseStatus.FAILED },
-          });
         }
       }
 
       // Score speaking responses
-      if (section.speakingResponse && section.speakingResponse.status === ResponseStatus.PENDING) {
+      if (section.sectionType === SectionType.SPEAKING && section.speakingResponse && section.speakingResponse.transcript) {
         try {
-          // Get prompt details
-          const prompt = await prisma.prompt.findUnique({
-            where: { id: section.speakingResponse.promptId },
-          });
+          // Parse prompt details from section.feedback JSON
+          let promptText = "Respond to the prompt.";
+          let rubric = null;
+          if (section.feedback) {
+            try {
+              const fb = JSON.parse(section.feedback);
+              promptText = fb.prompt || promptText;
+              rubric = fb.rubric || null;
+            } catch (e) {
+              console.error('Failed to parse speaking section feedback:', e);
+            }
+          }
 
-          if (prompt && section.speakingResponse.transcriptText) {
-            // Update status to processing
-            await prisma.speakingResponse.update({
-              where: { id: section.speakingResponse.id },
-              data: { status: ResponseStatus.PROCESSING },
-            });
+          // Score with AI
+          const { score, feedback } = await scoreSpeakingWithAI(
+            section.speakingResponse.transcript,
+            promptText,
+            rubric
+          );
 
-            // Score with AI
-            const { score, feedback } = await scoreSpeakingWithAI(
-              section.speakingResponse.transcriptText,
-              prompt.promptText,
-              prompt.rubric
-            );
-
-            // Update with score and feedback
-            await prisma.speakingResponse.update({
+          // Update section attempt score & speaking response feedback
+          await prisma.$transaction([
+            prisma.sectionAttempt.update({
+              where: { id: section.id },
+              data: {
+                rawScore: score,
+                weightedScore: calculateWeightedScore(score, SectionType.SPEAKING),
+              },
+            }),
+            prisma.speakingResponse.update({
               where: { id: section.speakingResponse.id },
               data: {
-                score,
-                aiFeedbackJson: feedback,
-                status: ResponseStatus.COMPLETED,
+                feedback: feedback as any,
               },
-            });
-          }
+            }),
+          ]);
         } catch (error) {
           console.error('Speaking scoring error:', error);
-          await prisma.speakingResponse.update({
-            where: { id: section.speakingResponse.id },
-            data: { status: ResponseStatus.FAILED },
-          });
         }
       }
     }

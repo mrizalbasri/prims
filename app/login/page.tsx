@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import Logo from "@/components/ui/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,14 +48,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <Image 
-              src="/logo.webp" 
-              alt="PRISM Logo" 
-              width={80} 
-              height={80} 
-              className="object-contain"
-              priority
-            />
+            <Logo className="h-13 w-44" priority />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">
             Masuk ke PRISM

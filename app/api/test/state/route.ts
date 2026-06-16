@@ -1,10 +1,32 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { SectionType, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
+const SECTION_TYPES_ORDER = [
+  SectionType.VOCABULARY,
+  SectionType.GRAMMAR,
+  SectionType.READING,
+  SectionType.WRITING,
+  SectionType.SPEAKING,
+];
 
+const FRONTEND_SECTION_MAP: Record<SectionType, "vocabulary" | "grammar" | "reading" | "writing" | "speaking"> = {
+  VOCABULARY: "vocabulary",
+  GRAMMAR: "grammar",
+  READING: "reading",
+  WRITING: "writing",
+  SPEAKING: "speaking",
+};
+
+const DURATION_MAP: Record<SectionType, number> = {
+  VOCABULARY: 8, // 8 minutes
+  GRAMMAR: 8,
+  READING: 12,
+  WRITING: 10,
+  SPEAKING: 7,
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +35,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's test attempt
+    // Get user's active or latest test attempt
     const testAttempt = await prisma.testAttempt.findFirst({
       where: { userId: user.id },
       include: {
@@ -32,66 +54,85 @@ export async function GET(request: NextRequest) {
     if (!testAttempt) {
       return NextResponse.json(
         {
-          hasAttempt: false,
-          message: 'No test attempt found',
+          attempt: null,
+          sections: [],
         },
         { status: 200 }
       );
     }
 
-    // Calculate progress for each section
-    const sectionProgress = testAttempt.sectionAttempts.map((section: any) => {
-      let answeredCount = 0;
-      let totalQuestions = 0;
-
-      if (section.objectiveAnswers.length > 0) {
-        answeredCount = section.objectiveAnswers.length;
-        totalQuestions = section.sectionType === 'READING' ? 10 : 15;
-      } else if (section.writingResponse) {
-        answeredCount = section.writingResponse.responseText ? 1 : 0;
-        totalQuestions = 1;
-      } else if (section.speakingResponse) {
-        answeredCount = section.speakingResponse.transcriptText ? 1 : 0;
-        totalQuestions = 1;
+    // Construct frontend sections format with loaded questions/prompts
+    const sectionsData = SECTION_TYPES_ORDER.map((secType) => {
+      const sa = testAttempt.sectionAttempts.find((s) => s.sectionType === secType);
+      
+      let questions: any[] = [];
+      if (sa && sa.feedback) {
+        try {
+          const parsed = JSON.parse(sa.feedback);
+          if (secType === SectionType.VOCABULARY || secType === SectionType.GRAMMAR || secType === SectionType.READING) {
+            questions = (parsed.questions || []).map((q: any) => ({
+              id: q.id,
+              prompt: q.questionText,
+              options: q.options,
+            }));
+          } else {
+            questions = [
+              {
+                id: `${secType}_PROMPT`,
+                prompt: parsed.prompt || "Respond to the prompt.",
+              }
+            ];
+          }
+        } catch (e) {
+          console.error("Error parsing section attempt feedback JSON:", e);
+        }
       }
 
       return {
-        sectionType: section.sectionType,
-        status: section.status,
-        startedAt: section.startedAt,
-        endedAt: section.endedAt,
-        timeLimitSec: section.timeLimitSec,
-        progress: {
-          answered: answeredCount,
-          total: totalQuestions,
-          percentage: totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0,
-        },
+        section: FRONTEND_SECTION_MAP[secType],
+        durationMinutes: DURATION_MAP[secType],
+        questions,
       };
     });
 
+    // Gather all saved objective answers
+    const answers: Record<string, string> = {};
+    let writingResponseText = "";
+    let speakingResponseText = "";
+
+    for (const sa of testAttempt.sectionAttempts) {
+      for (const objAns of sa.objectiveAnswers) {
+        answers[objAns.questionId] = objAns.selectedOption;
+      }
+      if (sa.sectionType === SectionType.WRITING && sa.writingResponse) {
+        writingResponseText = sa.writingResponse.content || "";
+      }
+      if (sa.sectionType === SectionType.SPEAKING && sa.speakingResponse) {
+        speakingResponseText = sa.speakingResponse.transcript || "";
+      }
+    }
+
+    // Find the first section that is not COMPLETED
+    let activeSectionIndex = 0;
+    for (let i = 0; i < SECTION_TYPES_ORDER.length; i++) {
+      const secType = SECTION_TYPES_ORDER[i];
+      const sa = testAttempt.sectionAttempts.find((s) => s.sectionType === secType);
+      if (sa && sa.status !== 'COMPLETED') {
+        activeSectionIndex = i;
+        break;
+      }
+    }
+
     return NextResponse.json(
       {
-        hasAttempt: true,
-        testAttempt: {
-          id: testAttempt.id,
+        attempt: {
           status: testAttempt.status,
-          startedAt: testAttempt.startedAt,
-          submittedAt: testAttempt.submittedAt,
-          completedAt: testAttempt.completedAt,
+          answers,
+          writingResponse: writingResponseText,
+          speakingResponse: speakingResponseText,
         },
-        sections: sectionProgress,
-        finalResult: testAttempt.finalResult
-          ? {
-              vocabScore: testAttempt.finalResult.vocabScore,
-              grammarScore: testAttempt.finalResult.grammarScore,
-              readingScore: testAttempt.finalResult.readingScore,
-              writingScore: testAttempt.finalResult.writingScore,
-              speakingScore: testAttempt.finalResult.speakingScore,
-              totalScore: testAttempt.finalResult.totalScore,
-              level: testAttempt.finalResult.level,
-              computedAt: testAttempt.finalResult.computedAt,
-            }
-          : null,
+        sections: sectionsData,
+        activeSectionIndex,
       },
       { status: 200 }
     );

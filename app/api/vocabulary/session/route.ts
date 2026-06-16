@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         message: 'Session started',
         session: {
           id: session.id,
-          startedAt: session.startedAt,
+          
         },
       },
       { status: 201 }
@@ -100,7 +100,7 @@ export async function PATCH(request: NextRequest) {
         cardsLearned: cardsLearned || 0,
         cardsMastered: cardsMastered || 0,
         durationSec,
-        endedAt,
+        
       },
     });
 
@@ -108,11 +108,11 @@ export async function PATCH(request: NextRequest) {
     await prisma.learningSession.create({
       data: {
         userId: user.id,
-        moduleType: 'vocabulary',
+        sectionType: 'VOCABULARY',
         durationSec,
-        completed: true,
-        startedAt: session.startedAt,
-        endedAt,
+        
+        
+        
       },
     });
 

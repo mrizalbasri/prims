@@ -9,7 +9,6 @@ import prisma from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'student.president.ac.id,admin.president.ac.id').split(',');
 
 export interface JWTPayload {
   userId: string;
@@ -65,8 +64,7 @@ export function verifyToken(token: string): JWTPayload | null {
  * Validate if email domain is allowed for registration
  */
 export function isAllowedEmailDomain(email: string): boolean {
-  const domain = email.split('@')[1]?.toLowerCase();
-  return ALLOWED_EMAIL_DOMAINS.some(allowed => allowed.toLowerCase() === domain);
+  return true; // Semua email diizinkan
 }
 
 /**
@@ -229,9 +227,7 @@ export function validateRegistrationData(data: RegisterData): { valid: boolean; 
   // Email validation
   if (!data.email || !data.email.includes('@')) {
     errors.push('Invalid email format');
-  } else if (!isAllowedEmailDomain(data.email)) {
-    errors.push(`Email domain not allowed. Allowed domains: ${ALLOWED_EMAIL_DOMAINS.join(', ')}`);
-  }
+  } 
 
   // Password validation
   if (!data.password || data.password.length < 8) {
@@ -262,10 +258,9 @@ export async function createAuditLog(
   try {
     await prisma.auditLog.create({
       data: {
-        actorId,
+        userId: actorId,
         action,
-        targetType,
-        targetId,
+        resource: targetType,
         metadata: metadata || {},
       },
     });

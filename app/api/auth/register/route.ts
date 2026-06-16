@@ -40,7 +40,11 @@ export async function POST(request: NextRequest) {
 
     // Determine role based on email domain
     const emailDomain = body.email.split('@')[1]?.toLowerCase();
-    const role = emailDomain?.includes('admin') ? UserRole.ADMIN : UserRole.STUDENT;
+    // Jika email mengandung 'admin' atau domain president.ac.id admin, jadikan ADMIN.
+    // Selain itu STUDENT.
+    const role = (emailDomain?.includes('admin') || emailDomain === 'admin.president.ac.id') 
+      ? UserRole.ADMIN 
+      : UserRole.STUDENT;
 
     // Hash password
     const passwordHash = await hashPassword(body.password);

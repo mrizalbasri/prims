@@ -1,10 +1,10 @@
 "use client";
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import Logo from "@/components/ui/Logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -18,7 +18,9 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -53,14 +55,7 @@ export default function RegisterPage() {
       <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <Image 
-              src="/logo.webp" 
-              alt="PRISM Logo" 
-              width={80} 
-              height={80} 
-              className="object-contain"
-              priority
-            />
+            <Logo className="h-13 w-44" priority />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">
             Daftar Akun
@@ -75,7 +70,7 @@ export default function RegisterPage() {
               {error}
             </div>
           )}
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -90,7 +85,7 @@ export default function RegisterPage() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email Kampus
@@ -118,9 +113,13 @@ export default function RegisterPage() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="">Pilih Program Studi</option>
-                <option value="Information Technology">Information Technology</option>
+                <option value="Information Technology">
+                  Information Technology
+                </option>
                 <option value="Information System">Information System</option>
-                <option value="Business Administration">Business Administration</option>
+                <option value="Business Administration">
+                  Business Administration
+                </option>
                 <option value="Accounting">Accounting</option>
               </select>
             </div>
@@ -165,10 +164,13 @@ export default function RegisterPage() {
               {isLoading ? "Mendaftar..." : "Daftar"}
             </button>
           </div>
-          
+
           <div className="text-center text-sm text-gray-600 dark:text-gray-400">
             Sudah punya akun?{" "}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link
+              href="/login"
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
               Masuk di sini
             </Link>
           </div>

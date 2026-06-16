@@ -25,14 +25,12 @@ export async function GET(request: NextRequest) {
           include: {
             writingResponse: {
               select: {
-                aiFeedbackJson: true,
-                score: true,
+                feedback: true,
               },
             },
             speakingResponse: {
               select: {
-                aiFeedbackJson: true,
-                score: true,
+                feedback: true,
               },
             },
           },
@@ -57,10 +55,19 @@ export async function GET(request: NextRequest) {
       rawScore: section.rawScore,
       weightedScore: section.weightedScore,
       feedback:
-        section.writingResponse?.aiFeedbackJson ||
-        section.speakingResponse?.aiFeedbackJson ||
+        section.writingResponse?.feedback ||
+        section.speakingResponse?.feedback ||
         null,
     }));
+
+    const rawScores = (testAttempt.finalResult.sectionScores || {}) as any;
+    const scores = {
+      vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
+      grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,
+      reading: rawScores.READING ?? rawScores.reading ?? 0,
+      writing: rawScores.WRITING ?? rawScores.writing ?? 0,
+      speaking: rawScores.SPEAKING ?? rawScores.speaking ?? 0,
+    };
 
     return NextResponse.json(
       {
@@ -68,16 +75,11 @@ export async function GET(request: NextRequest) {
         result: {
           testAttemptId: testAttempt.id,
           completedAt: testAttempt.completedAt,
-          scores: {
-            vocabulary: testAttempt.finalResult.vocabScore,
-            grammar: testAttempt.finalResult.grammarScore,
-            reading: testAttempt.finalResult.readingScore,
-            writing: testAttempt.finalResult.writingScore,
-            speaking: testAttempt.finalResult.speakingScore,
-            total: testAttempt.finalResult.totalScore,
-          },
-          level: testAttempt.finalResult.level,
-          levelDescription: getLevelDescription(testAttempt.finalResult.level),
+          scores,
+          level: testAttempt.finalResult.overallLevel,
+          cefrLevel: testAttempt.finalResult.cefrLevel,
+          overallScore: testAttempt.finalResult.overallScore,
+          levelDescription: getLevelDescription(testAttempt.finalResult.overallLevel),
           sectionDetails,
         },
       },

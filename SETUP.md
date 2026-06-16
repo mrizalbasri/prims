@@ -39,6 +39,9 @@ ALLOWED_EMAIL_DOMAINS="student.president.ac.id,admin.president.ac.id"
 
 # AI Services (Google Gemini)
 GEMINI_API_KEY="your-gemini-api-key-here"
+# Optional model overrides
+GEMINI_WRITING_MODEL="gemini-2.5-flash"
+GEMINI_SPEAKING_MODEL="gemini-2.5-flash-native-audio-dialog"
 
 # Application
 NODE_ENV="development"

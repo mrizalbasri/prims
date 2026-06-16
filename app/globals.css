@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-secondary-fixed-dim: #3cddc7;
   --color-on-secondary-fixed-variant: #005047;
@@ -27,32 +29,60 @@
   --color-primary-fixed: #d6e3ff;
   --color-on-background: #1a1c1e;
   --color-surface-dim: #dad9dd;
-  --color-background: #faf9fd;
-  --color-surface: #faf9fd;
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
   --color-error-container: #ffdad6;
   --color-primary-container: #1a365d;
   --color-on-surface-variant: #43474e;
-  --color-surface-container-low: #f4f3f7;
+  --color-surface-container-low: #f8fafc;
   --color-on-tertiary-container: #c6955e;
   --color-inverse-on-surface: #f1f0f4;
   --color-status-advanced: #38A169;
   --color-on-tertiary: #ffffff;
   --color-error: #ba1a1a;
   --color-on-error: #ffffff;
-  --color-surface-glass: rgba(255, 255, 255, 0.8);
+  --color-surface-glass: rgba(255, 255, 255, 0.85);
   --color-primary-fixed-dim: #adc7f7;
   --color-inverse-primary: #adc7f7;
   --color-on-tertiary-fixed: #2b1700;
   --color-on-secondary-container: #007165;
-  --color-outline-variant: #c4c6cf;
+  --color-outline-variant: #e2e8f0;
   --color-on-secondary: #ffffff;
   --color-on-primary: #ffffff;
   --color-on-secondary-fixed: #00201c;
   --color-status-beginner: #E53E3E;
   --color-on-primary-fixed-variant: #2d476f;
-  --color-secondary: #006b5f;
-  --color-primary: #002045;
-  --color-surface-container: #efedf1;
+  
+  /* Brand colors matched directly to the PRISM logo */
+  --color-secondary: #00b8a3;
+  --color-primary: #173454;
+  
+  --color-blue-55: #f0f5fa;
+  --color-blue-50: #f0f5fa;
+  --color-blue-100: #dce7f3;
+  --color-blue-200: #bed3e9;
+  --color-blue-300: #93b3d9;
+  --color-blue-400: #628cc3;
+  --color-blue-500: #3b659c;
+  --color-blue-600: #173454;
+  --color-blue-700: #132a44;
+  --color-blue-800: #0e2034;
+  --color-blue-900: #0b1726;
+  --color-blue-950: #070e17;
+
+  --color-teal-50: #f0fbfb;
+  --color-teal-100: #daf6f4;
+  --color-teal-200: #b9ece7;
+  --color-teal-300: #89ddd5;
+  --color-teal-400: #52c8bd;
+  --color-teal-500: #00b8a3;
+  --color-teal-600: #00a491;
+  --color-teal-700: #008475;
+  --color-teal-800: #00675b;
+  --color-teal-900: #00544b;
+  --color-teal-950: #003630;
+  
+  --color-surface-container: #ffffff;
 
   --font-hanken: "Hanken Grotesk", sans-serif;
   --font-inter: "Inter", sans-serif;
@@ -62,9 +92,20 @@
   --spacing-gutter: 24px;
   --spacing-stack-lg: 32px;
   --spacing-margin-mobile: 16px;
-  --spacing-stack-sm: 8px;
-  --spacing-stack-md: 16px;
   --spacing-section-gap: 64px;
+
+  --animate-float-slow: float 7s ease-in-out infinite;
+  --animate-float-medium: float-reverse 6s ease-in-out infinite;
+  --animate-float-fast: float 5s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes float-reverse {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(8px); }
+  }
 }
 
 @layer base {
@@ -104,4 +145,45 @@
   .animate-shake {
     animation: shake 0.5s ease-in-out;
   }
+
+  .bg-grid-pattern {
+    background-size: 30px 30px;
+    background-image: linear-gradient(to right, var(--color-outline-variant) 1px, transparent 1px),
+                      linear-gradient(to bottom, var(--color-outline-variant) 1px, transparent 1px);
+    opacity: 0.15;
+  }
 }
+
+/* One Dark Theme Overrides - Triggered ONLY via class name ".dark" */
+.dark {
+  --color-gray-950: #1e2227;
+  --color-gray-900: #21252b;
+  --color-gray-850: #242b35;
+  --color-gray-800: #282c34;
+  --color-gray-700: #2d3139;
+  --color-gray-650: #353b45;
+  --color-gray-600: #3e4451;
+  --color-gray-500: #5c6370;
+  --color-gray-400: #abb2bf;
+  --color-gray-300: #c8ccd4;
+  --color-gray-200: #e5e9f0;
+  --color-gray-100: #eceff4;
+
+  --color-background: #1e2227;
+  --color-on-background: #abb2bf;
+  --color-surface: #21252b;
+  --color-surface-container-lowest: #1e2227;
+  --color-surface-container-low: #21252b;
+  --color-surface-container: #282c34;
+  --color-surface-container-high: #2d3139;
+  --color-surface-container-highest: #3e4451;
+  --color-outline-variant: #3e4451;
+  --color-outline: #5c6370;
+  
+  --color-primary: #61afef;
+  --color-status-beginner: #e06c75;
+  --color-status-intermediate: #e5c07b;
+  --color-status-advanced: #98c379;
+}
+
+

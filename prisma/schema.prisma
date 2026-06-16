@@ -41,8 +41,10 @@ model User {
   auditLogs          AuditLog[]
   vocabularyProgress VocabularyProgress[]
   vocabularySessions VocabularySession[]
-  writingSubmissions WritingResponse[]
-  speakingSessions   SpeakingResponse[]
+  writingResponses   WritingResponse[]
+  speakingResponses  SpeakingResponse[]
+  writingSubmissions WritingSubmission[]
+  speakingSessions   SpeakingSession[]
   reminderPreference ReminderPreference?
   reminderLogs       ReminderLog[]
   learningSessions   LearningSession[]
@@ -175,17 +177,25 @@ model ObjectiveAnswer {
 enum WritingPromptType {
   PARAGRAPH
   ESSAY
+  EMAIL
+  REPORT
 }
 
 model WritingPrompt {
-  id         String             @id @default(cuid())
-  type       WritingPromptType
-  level      ProficiencyLevel?
-  promptText String             @map("prompt_text")
-  rubric     Json?
-  isActive   Boolean            @default(true) @map("is_active")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
+  id           String             @id @default(cuid())
+  title        String
+  type         WritingPromptType
+  level        ProficiencyLevel?
+  promptText   String             @map("prompt_text")
+  wordCountMin Int                @default(0) @map("word_count_min")
+  wordCountMax Int                @default(0) @map("word_count_max")
+  rubric       Json?
+  isActive     Boolean            @default(true) @map("is_active")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  submissions WritingSubmission[]
 
   @@map("writing_prompts")
 }
@@ -215,6 +225,10 @@ enum SpeakingScenarioType {
   DAILY_CONVERSATION
   ACADEMIC_DISCUSSION
   PRESENTATION
+  INTRODUCTION
+  DISCUSSION
+  INTERVIEW
+  CONVERSATION
 }
 
 model SpeakingScenario {
@@ -223,11 +237,16 @@ model SpeakingScenario {
   level        ProficiencyLevel?
   title        String
   description  String
-  promptText   String               @map("prompt_text")
+  promptText   String?              @map("prompt_text")
   initialAudio String?              @map("initial_audio")
   isActive     Boolean              @default(true) @map("is_active")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
+  rubric       Json?
+  prompts      String[]             @default([])
+
+  // Relations
+  sessions SpeakingSession[]
 
   @@map("speaking_scenarios")
 }
@@ -435,4 +454,73 @@ model LearningSession {
 enum ResponseStatus {
   SUCCESS
   ERROR
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model WritingSubmission {
+  id             String            @id @default(cuid())
+  userId         String            @map("user_id")
+  promptId       String            @map("prompt_id")
+  responseText   String            @map("response_text")
+  wordCount      Int               @map("word_count")
+  grammarScore   Float?            @map("grammar_score")
+  clarityScore   Float?            @map("clarity_score")
+  structureScore Float?            @map("structure_score")
+  overallScore   Float?            @map("overall_score")
+  aiFeedbackJson Json?             @map("ai_feedback_json")
+  status         ResponseStatus    @default(PENDING)
+  submittedAt    DateTime          @default(now()) @map("submitted_at")
+  completedAt    DateTime?         @map("completed_at")
+  revisionCount  Int               @default(0) @map("revision_count")
+
+  // Relations
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt    WritingPrompt     @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  revisions WritingRevision[]
+
+  @@map("writing_submissions")
+}
+
+model WritingRevision {
+  id                  String            @id @default(cuid())
+  writingSubmissionId String            @map("writing_submission_id")
+  responseText        String            @map("response_text")
+  wordCount           Int               @map("word_count")
+  grammarScore        Float?            @map("grammar_score")
+  clarityScore        Float?            @map("clarity_score")
+  structureScore      Float?            @map("structure_score")
+  overallScore        Float?            @map("overall_score")
+  aiFeedbackJson      Json?             @map("ai_feedback_json")
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  writingSubmission WritingSubmission @relation(fields: [writingSubmissionId], references: [id], onDelete: Cascade)
+
+  @@map("writing_revisions")
+}
+
+model SpeakingSession {
+  id                 String           @id @default(cuid())
+  userId             String           @map("user_id")
+  scenarioId         String           @map("scenario_id")
+  transcriptText     String?          @map("transcript_text")
+  audioUrl           String?          @map("audio_url")
+  durationSec        Int              @default(0) @map("duration_sec")
+  status             ResponseStatus   @default(PENDING)
+  fluencyScore       Float?           @map("fluency_score")
+  pronunciationScore Float?           @map("pronunciation_score")
+  grammarScore       Float?           @map("grammar_score")
+  overallScore       Float?           @map("overall_score")
+  aiFeedbackJson     Json?            @map("ai_feedback_json")
+  startedAt          DateTime         @default(now()) @map("started_at")
+  completedAt        DateTime?        @map("completed_at")
+
+  // Relations
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scenario SpeakingScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@map("speaking_sessions")
 }

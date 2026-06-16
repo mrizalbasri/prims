@@ -1,6 +1,4 @@
 "use client";
-export const dynamic = 'force-dynamic';
-
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -34,21 +32,26 @@ export default function VocabularyPage() {
     correctAnswers: 0,
     streak: 0
   });
-  const [selectedLevel, setSelectedLevel] = useState<"all" | "Beginner" | "Intermediate" | "Advanced">("all");
   const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
     async function loadCards() {
-      const res = await fetch("/api/vocabulary/cards");
-      if (!res.ok) {
-        if (res.status === 401) router.push("/login");
-        setIsLoading(false);
-        return;
-      }
+      try {
+        const res = await fetch("/api/vocabulary/cards");
+        if (!res.ok) {
+          if (res.status === 401) router.push("/login");
+          if (res.status === 403) router.push("/student");
+          setIsLoading(false);
+          return;
+        }
 
-      const data = await res.json();
-      setCards(data.cards || []);
-      setIsLoading(false);
+        const data = await res.json();
+        setCards(data.cards || []);
+      } catch (err) {
+        console.error("Failed to load cards:", err);
+      } finally {
+        setIsLoading(false);
+      }
     }
 
     void loadCards();
@@ -57,36 +60,36 @@ export default function VocabularyPage() {
   const currentCard = cards[currentCardIndex];
   const progress = cards.length > 0 ? Math.round(((currentCardIndex + 1) / cards.length) * 100) : 0;
 
-  const filteredCards = selectedLevel === "all" 
-    ? cards 
-    : cards.filter(card => card.level === selectedLevel);
-
   async function handleReview(quality: 1 | 2 | 3 | 4 | 5) {
     if (!currentCard) return;
 
-    const res = await fetch("/api/vocabulary/review", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        cardId: currentCard.id,
-        quality
-      })
-    });
+    try {
+      const res = await fetch("/api/vocabulary/review", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          cardId: currentCard.id,
+          quality
+        })
+      });
 
-    if (!res.ok) return;
+      if (!res.ok) return;
 
-    const isCorrect = quality >= 3;
-    setSessionStats(prev => ({
-      cardsReviewed: prev.cardsReviewed + 1,
-      correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
-      streak: isCorrect ? prev.streak + 1 : 0
-    }));
+      const isCorrect = quality >= 3;
+      setSessionStats(prev => ({
+        cardsReviewed: prev.cardsReviewed + 1,
+        correctAnswers: prev.correctAnswers + (isCorrect ? 1 : 0),
+        streak: isCorrect ? prev.streak + 1 : 0
+      }));
 
-    if (currentCardIndex + 1 >= cards.length) {
-      setShowResults(true);
-    } else {
-      setCurrentCardIndex(prev => prev + 1);
-      setIsFlipped(false);
+      if (currentCardIndex + 1 >= cards.length) {
+        setShowResults(true);
+      } else {
+        setCurrentCardIndex(prev => prev + 1);
+        setIsFlipped(false);
+      }
+    } catch (err) {
+      console.error("Review submission error:", err);
     }
   }
 
@@ -103,10 +106,10 @@ export default function VocabularyPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-hanken font-bold text-primary">Memuat Flashcard...</p>
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Memuat Flashcard...</p>
         </div>
       </div>
     );
@@ -118,53 +121,56 @@ export default function VocabularyPage() {
       : 0;
 
     return (
-      <div className="min-h-screen bg-surface">
-        <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-          <div className="max-w-container-max mx-auto flex justify-between items-center">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</Link>
-            <Link href="/student" className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium">
-              <span className="material-symbols-outlined">arrow_back</span>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+        <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-inter text-sm font-semibold cursor-pointer">
+              <span className="material-symbols-outlined text-lg">arrow_back</span>
               Dashboard
             </Link>
           </div>
         </header>
 
-        <main className="max-w-2xl mx-auto px-margin-mobile md:px-gutter py-10">
-          <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant p-8 md:p-12 text-center shadow-xl">
-            <span className="material-symbols-outlined text-6xl text-secondary mb-6 inline-block" style={{ fontVariationSettings: "'FILL' 1" }}>
-              celebration
-            </span>
-            <h1 className="font-hanken text-3xl font-bold text-primary mb-4">Sesi Selesai!</h1>
+        <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-12 flex flex-col justify-center">
+          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 text-center shadow-xl space-y-8">
+            <div className="space-y-3">
+              <span className="material-symbols-outlined text-6xl text-yellow-500 animate-bounce" style={{ fontVariationSettings: "'FILL' 1" }}>
+                celebration
+              </span>
+              <h1 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Sesi Belajar Selesai!</h1>
+              <p className="font-inter text-sm text-gray-400 dark:text-gray-300">Pekerjaan luar biasa! Ingatan Anda berkembang semakin kuat.</p>
+            </div>
             
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="bg-surface-container-low rounded-2xl p-6">
-                <span className="material-symbols-outlined text-3xl text-blue-600 mb-2 inline-block">style</span>
-                <p className="font-jetbrains text-3xl font-bold text-primary">{sessionStats.cardsReviewed}</p>
-                <p className="font-inter text-xs text-on-surface-variant">Kartu Direview</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+                <span className="material-symbols-outlined text-2xl text-blue-600 mb-1.5 inline-block">style</span>
+                <p className="font-mono text-2xl font-black text-gray-900 dark:text-white">{sessionStats.cardsReviewed}</p>
+                <p className="font-inter text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">Kartu Direview</p>
               </div>
-              <div className="bg-surface-container-low rounded-2xl p-6">
-                <span className="material-symbols-outlined text-3xl text-green-600 mb-2 inline-block">check_circle</span>
-                <p className="font-jetbrains text-3xl font-bold text-primary">{accuracy}%</p>
-                <p className="font-inter text-xs text-on-surface-variant">Akurasi</p>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+                <span className="material-symbols-outlined text-2xl text-green-600 mb-1.5 inline-block">check_circle</span>
+                <p className="font-mono text-2xl font-black text-gray-900 dark:text-white">{accuracy}%</p>
+                <p className="font-inter text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">Akurasi</p>
               </div>
-              <div className="bg-surface-container-low rounded-2xl p-6">
-                <span className="material-symbols-outlined text-3xl text-orange-600 mb-2 inline-block">local_fire_department</span>
-                <p className="font-jetbrains text-3xl font-bold text-primary">{sessionStats.streak}</p>
-                <p className="font-inter text-xs text-on-surface-variant">Streak Terbaik</p>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+                <span className="material-symbols-outlined text-2xl text-orange-600 mb-1.5 inline-block">local_fire_department</span>
+                <p className="font-mono text-2xl font-black text-gray-900 dark:text-white">{sessionStats.streak}</p>
+                <p className="font-inter text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-wider">Streak Terbaik</p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
               <button
                 onClick={resetSession}
-                className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all group"
+                className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-hanken font-bold px-8 py-3.5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
               >
                 <span className="material-symbols-outlined">refresh</span>
                 Ulangi Sesi
               </button>
               <Link
                 href="/student"
-                className="inline-flex items-center justify-center gap-2 bg-surface-container-high text-primary font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all border border-outline-variant"
+                className="inline-flex items-center justify-center gap-2 bg-gray-150 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-hanken font-bold px-8 py-3.5 rounded-xl transition-all border border-transparent dark:border-gray-700 cursor-pointer"
               >
                 Kembali ke Dashboard
               </Link>
@@ -177,132 +183,164 @@ export default function VocabularyPage() {
 
   if (cards.length === 0) {
     return (
-      <div className="min-h-screen bg-surface">
-        <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-          <div className="max-w-container-max mx-auto flex justify-between items-center">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</Link>
-            <Link href="/student" className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium">
-              <span className="material-symbols-outlined">arrow_back</span>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+        <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-inter text-sm font-semibold cursor-pointer">
+              <span className="material-symbols-outlined text-lg">arrow_back</span>
               Dashboard
             </Link>
           </div>
         </header>
 
-        <main className="max-w-2xl mx-auto px-margin-mobile md:px-gutter py-10">
-          <div className="bg-surface-container-lowest rounded-2xl border-2 border-dashed border-outline-variant p-12 text-center">
-            <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">style</span>
-            <h2 className="font-hanken text-xl font-bold text-primary mb-2">Belum Ada Kartu Vocabulary</h2>
-            <p className="font-inter text-on-surface-variant">Kartu vocabulary akan tersedia setelah database di-seed.</p>
+        <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-12 flex flex-col justify-center">
+          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-12 text-center space-y-4 shadow-sm">
+            <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+              style
+            </span>
+            <h2 className="font-hanken text-xl font-bold text-gray-800 dark:text-white">Belum Ada Kartu Vocabulary</h2>
+            <p className="font-inter text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
+              Kartu kosakata belum tersedia di database. Mintalah admin kampus untuk memuat bank soal/kata terlebih dahulu.
+            </p>
           </div>
         </main>
       </div>
     );
   }
 
+  const levelColor = currentCard?.level === "Advanced" ? "bg-green-500/20 text-green-600 dark:text-green-400" :
+                     currentCard?.level === "Intermediate" ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400" :
+                     "bg-red-500/20 text-red-600 dark:text-red-400";
+
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-        <div className="max-w-container-max mx-auto flex justify-between items-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</Link>
-            <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-200">
-              Vocabulary
+            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <span className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-200/50 dark:border-blue-800/20">
+              Vocabulary Flashcards
             </span>
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-3 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant">
+            <div className="hidden sm:flex items-center gap-2 bg-orange-50 dark:bg-orange-500/10 px-4 py-2 rounded-xl border border-orange-100 dark:border-orange-900/30">
               <span className="material-symbols-outlined text-orange-600">local_fire_department</span>
-              <span className="font-jetbrains font-bold text-primary">{sessionStats.streak}</span>
+              <span className="font-mono font-bold text-gray-900 dark:text-white text-sm">{sessionStats.streak}</span>
             </div>
-            <Link href="/student" className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium">
-              <span className="material-symbols-outlined">close</span>
+            <Link href="/student" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-2xl">close</span>
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="h-1 w-full bg-surface-container-high">
+      {/* Progress Bar */}
+      <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-800">
         <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: `${progress}%` }}></div>
       </div>
 
-      <main className="max-w-4xl mx-auto px-margin-mobile md:px-gutter py-10">
-        <div className="flex items-center justify-between mb-8">
+      <main className="flex-grow max-w-4xl w-full mx-auto px-6 py-10 flex flex-col justify-center space-y-8">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-hanken text-2xl font-bold text-primary mb-1">Vocabulary Flashcards</h1>
-            <p className="font-inter text-sm text-on-surface-variant">
+            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-0.5">
+              Flashcard Deck
+            </span>
+            <h1 className="font-hanken text-xl font-bold text-gray-950 dark:text-white">
               Kartu {currentCardIndex + 1} dari {cards.length}
-            </p>
+            </h1>
           </div>
           
-          <div className="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant">
-            <span className="material-symbols-outlined text-green-600 text-xl">check_circle</span>
-            <span className="font-jetbrains font-bold text-primary">{sessionStats.correctAnswers}/{sessionStats.cardsReviewed}</span>
+          <div className="flex items-center gap-2 bg-green-50 dark:bg-green-500/10 border border-green-200/40 px-4 py-2 rounded-xl">
+            <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
+            <span className="font-mono text-sm font-bold text-green-600 dark:text-green-400">{sessionStats.correctAnswers} / {sessionStats.cardsReviewed}</span>
           </div>
         </div>
 
         {currentCard && (
-          <div className="mb-8">
+          <div className="space-y-8">
             <div 
-              className="relative w-full h-96 cursor-pointer perspective-1000"
+              className="relative w-full h-[360px] cursor-pointer perspective-1000"
               onClick={() => setIsFlipped(!isFlipped)}
             >
               <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
-                {/* Front */}
-                <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl p-8 md:p-12 flex flex-col items-center justify-center text-center shadow-2xl">
-                  <span className="material-symbols-outlined text-white text-5xl mb-6" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    book
-                  </span>
-                  <h2 className="font-hanken text-5xl md:text-6xl font-bold text-white mb-4">
+                {/* Front Side */}
+                <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-8 md:p-12 flex flex-col items-center justify-center text-center shadow-xl border border-blue-500/30">
+                  <div className="w-16 h-16 rounded-2xl bg-white/10 text-white flex items-center justify-center mb-6">
+                    <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      style
+                    </span>
+                  </div>
+                  <h2 className="font-hanken text-4xl md:text-5xl font-black text-white tracking-tight mb-4 select-none">
                     {currentCard.word}
                   </h2>
-                  <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider">
+                  <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-white/20">
                     {currentCard.level}
                   </span>
-                  <p className="mt-8 text-white/70 text-sm font-inter">Klik untuk melihat definisi</p>
+                  <p className="absolute bottom-6 text-white/50 text-xs font-inter uppercase tracking-widest select-none">
+                    Klik kartu untuk membalik
+                  </p>
                 </div>
 
-                {/* Back */}
-                <div className="absolute inset-0 backface-hidden rotate-y-180 bg-surface-container-lowest rounded-3xl border border-outline-variant p-8 md:p-12 flex flex-col justify-center shadow-2xl">
-                  <div className="mb-6">
-                    <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Definisi</p>
-                    <p className="font-inter text-lg text-primary leading-relaxed">
-                      {currentCard.definition}
-                    </p>
-                  </div>
-                  
-                  <div className="pt-6 border-t border-outline-variant">
-                    <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Contoh Penggunaan</p>
-                    <p className="font-inter text-sm text-on-surface-variant italic">
-                      "{currentCard.example}"
-                    </p>
+                {/* Back Side */}
+                <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 flex flex-col justify-between shadow-xl">
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-start border-b border-gray-100 dark:border-gray-800 pb-4">
+                      <h2 className="font-hanken text-3xl font-bold text-gray-900 dark:text-white">
+                        {currentCard.word}
+                      </h2>
+                      <span className={`px-3.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${levelColor}`}>
+                        {currentCard.level}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Definisi</span>
+                      <p className="font-inter text-base text-gray-700 dark:text-gray-200 leading-relaxed">
+                        {currentCard.definition}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Contoh Kalimat</span>
+                      <p className="font-inter text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                        "{currentCard.example}"
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="mt-8 text-on-surface-variant text-xs font-inter text-center">Klik untuk kembali</p>
+                  <p className="text-gray-400 text-center text-xs font-inter uppercase tracking-widest select-none pt-4">
+                    Klik untuk membalik kembali
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* Repetition Quality Buttons */}
             {isFlipped && (
-              <div className="mt-8 space-y-4">
-                <p className="text-center font-hanken text-sm font-bold text-primary mb-4">Seberapa baik Anda mengingat kata ini?</p>
-                <div className="grid grid-cols-5 gap-3">
+              <div className="space-y-4 animate-fadeIn">
+                <p className="text-center font-hanken text-sm font-bold text-gray-700 dark:text-gray-300">
+                  Seberapa baik Anda mengingat kata ini?
+                </p>
+                <div className="grid grid-cols-5 gap-2.5 sm:gap-4">
                   {[
-                    { quality: 1, label: "Tidak Ingat", color: "bg-red-500 hover:bg-red-600", icon: "sentiment_very_dissatisfied" },
-                    { quality: 2, label: "Sulit", color: "bg-orange-500 hover:bg-orange-600", icon: "sentiment_dissatisfied" },
-                    { quality: 3, label: "Cukup", color: "bg-yellow-500 hover:bg-yellow-600", icon: "sentiment_neutral" },
-                    { quality: 4, label: "Baik", color: "bg-green-500 hover:bg-green-600", icon: "sentiment_satisfied" },
-                    { quality: 5, label: "Mudah", color: "bg-blue-500 hover:bg-blue-600", icon: "sentiment_very_satisfied" }
+                    { quality: 1, label: "Lupa", color: "bg-red-500 hover:bg-red-600 shadow-red-200/50 hover:shadow-red-500/20", icon: "sentiment_very_dissatisfied" },
+                    { quality: 2, label: "Sulit", color: "bg-orange-500 hover:bg-orange-600 shadow-orange-200/50 hover:shadow-orange-500/20", icon: "sentiment_dissatisfied" },
+                    { quality: 3, label: "Cukup", color: "bg-yellow-500 hover:bg-yellow-600 shadow-yellow-200/50 hover:shadow-yellow-500/20", icon: "sentiment_neutral" },
+                    { quality: 4, label: "Baik", color: "bg-green-500 hover:bg-green-600 shadow-green-200/50 hover:shadow-green-500/20", icon: "sentiment_satisfied" },
+                    { quality: 5, label: "Mudah", color: "bg-blue-500 hover:bg-blue-600 shadow-blue-200/50 hover:shadow-blue-500/20", icon: "sentiment_very_satisfied" }
                   ].map((option) => (
                     <button
                       key={option.quality}
                       onClick={() => handleReview(option.quality as 1 | 2 | 3 | 4 | 5)}
-                      className={`${option.color} text-white rounded-xl p-4 transition-all hover:shadow-lg flex flex-col items-center gap-2 group`}
+                      className={`${option.color} text-white rounded-2xl p-3 sm:p-4 transition-all shadow-md hover:shadow-lg flex flex-col items-center gap-1.5 group cursor-pointer hover:-translate-y-0.5`}
                     >
-                      <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined text-2xl sm:text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                         {option.icon}
                       </span>
-                      <span className="font-hanken text-xs font-bold">{option.label}</span>
+                      <span className="font-hanken text-[10px] sm:text-xs font-bold">{option.label}</span>
                     </button>
                   ))}
                 </div>
@@ -311,14 +349,17 @@ export default function VocabularyPage() {
           </div>
         )}
 
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6">
-          <h3 className="font-hanken text-sm font-bold text-primary mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">info</span>
-            Sistem Spaced Repetition
-          </h3>
-          <p className="font-inter text-xs text-on-surface-variant leading-relaxed">
-            Kartu akan muncul kembali berdasarkan seberapa baik Anda mengingatnya. Semakin mudah Anda mengingat, semakin lama interval review berikutnya.
-          </p>
+        {/* Tip Box */}
+        <div className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-5 flex gap-3.5">
+          <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">info</span>
+          <div className="space-y-1">
+            <h4 className="font-hanken text-xs font-bold text-gray-900 dark:text-white">
+              Sistem Spaced Repetition (SRS)
+            </h4>
+            <p className="font-inter text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+              Algoritma PRISM mengatur waktu pemunculan kembali flashcard ini secara cerdas. Kartu yang Anda nilai "Lupa" atau "Sulit" akan muncul kembali lebih sering, sedangkan kata yang dinilai "Mudah" akan diuji kembali setelah interval waktu yang lebih lama.
+            </p>
+          </div>
         </div>
       </main>
     </div>

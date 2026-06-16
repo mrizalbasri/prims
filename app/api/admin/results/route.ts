@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Build filter conditions
-    const userFilter: any = {};
+    const userFilter: any = { role: 'STUDENT' };
     if (cohort) userFilter.cohort = cohort;
     if (major) userFilter.major = major;
     if (search) {
@@ -33,59 +33,70 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Get total count for filtered attempts
-    const filteredCount = await prisma.testAttempt.count({
-      where: {
-        status: 'COMPLETED',
-        user: userFilter,
-      },
+    // Get total count of filtered students
+    const filteredCount = await prisma.user.count({
+      where: userFilter,
     });
 
-    // Get test attempts with results
-    const testAttempts = await prisma.testAttempt.findMany({
-      where: {
-        status: 'COMPLETED',
-        user: userFilter,
-      },
+    // Get students with their attempts
+    const students = await prisma.user.findMany({
+      where: userFilter,
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-            major: true,
-            cohort: true,
+        testAttempts: {
+          orderBy: { startedAt: 'desc' },
+          take: 1,
+          include: {
+            finalResult: true,
           },
         },
-        finalResult: true,
       },
-      orderBy: { completedAt: 'desc' },
+      orderBy: { fullName: 'asc' },
       skip,
       take: limit,
     });
 
-    // Format results according to FinalResult model schema
-    const results = testAttempts.map((attempt: any) => {
-      const sectionScores = attempt.finalResult?.sectionScores
+    // Format results with their test status
+    const results = students.map((stud: any) => {
+      const attempt = stud.testAttempts?.[0] || null;
+      const rawScores = attempt?.finalResult?.sectionScores
         ? (typeof attempt.finalResult.sectionScores === 'string'
             ? JSON.parse(attempt.finalResult.sectionScores)
             : attempt.finalResult.sectionScores)
         : {};
 
+      const sectionScores = {
+        vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
+        grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,
+        reading: rawScores.READING ?? rawScores.reading ?? 0,
+        writing: rawScores.WRITING ?? rawScores.writing ?? 0,
+        speaking: rawScores.SPEAKING ?? rawScores.speaking ?? 0,
+      };
+
+      let testStatus = "BELUM_MULAI";
+      if (attempt) {
+        if (attempt.status === "COMPLETED") {
+          testStatus = "SELESAI";
+        } else if (attempt.status === "IN_PROGRESS" || attempt.status === "PROCESSING") {
+          testStatus = "SEDANG_MENGERJAKAN";
+        } else if (attempt.status === "FAILED") {
+          testStatus = "GAGAL";
+        }
+      }
+
       return {
-        testAttemptId: attempt.id,
+        testAttemptId: attempt?.id || `no-attempt-${stud.id}`,
         student: {
-          id: attempt.user.id,
-          email: attempt.user.email,
-          fullName: attempt.user.fullName,
-          major: attempt.user.major,
-          cohort: attempt.user.cohort,
+          id: stud.id,
+          email: stud.email,
+          fullName: stud.fullName,
+          major: stud.major,
+          cohort: stud.cohort,
         },
-        status: attempt.status,
-        startedAt: attempt.startedAt,
-        submittedAt: attempt.submittedAt,
-        completedAt: attempt.completedAt,
-        scores: attempt.finalResult
+        status: testStatus,
+        startedAt: attempt?.startedAt || null,
+        submittedAt: attempt?.submittedAt || null,
+        completedAt: attempt?.completedAt || null,
+        scores: attempt?.finalResult
           ? {
               vocabulary: sectionScores.vocabulary || 0,
               grammar: sectionScores.grammar || 0,
@@ -95,7 +106,7 @@ export async function GET(request: NextRequest) {
               total: attempt.finalResult.overallScore || 0,
             }
           : null,
-        level: attempt.finalResult?.cefrLevel || null,
+        level: attempt?.finalResult?.cefrLevel || null,
       };
     });
 

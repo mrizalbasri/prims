@@ -1,6 +1,4 @@
 "use client";
-export const dynamic = 'force-dynamic';
-
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -37,26 +35,77 @@ export default function SpeakingPage() {
   const [result, setResult] = useState<Session | null>(null);
   const [view, setView] = useState<"scenarios" | "practice" | "history">("scenarios");
   const [recordingTime, setRecordingTime] = useState(0);
+  const [recognition, setRecognition] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+        
+        rec.onresult = (event: any) => {
+          let finalTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript + " ";
+            }
+          }
+          if (finalTranscript) {
+            setTranscript(prev => prev + finalTranscript);
+          }
+        };
+
+        rec.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+          if (event.error === 'not-allowed') {
+            alert("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
+          } else if (event.error === 'no-speech') {
+            alert("Tidak ada suara yang terdeteksi. Silakan coba berbicara lebih dekat ke mikrofon atau berbicara lebih keras.");
+          } else if (event.error === 'audio-capture') {
+            alert("Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon Anda terhubung dengan benar dan aktif.");
+          } else {
+            alert(`Gagal merekam suara: ${event.error}. Silakan coba lagi atau ketik jawaban langsung sebagai alternatif.`);
+          }
+        };
+
+        rec.onend = () => {
+          setIsRecording(false);
+        };
+
+        setRecognition(rec);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function loadData() {
-      const [scenariosRes, sessionsRes] = await Promise.all([
-        fetch("/api/speaking/scenarios"),
-        fetch("/api/speaking/sessions")
-      ]);
+      try {
+        const [scenariosRes, sessionsRes] = await Promise.all([
+          fetch("/api/speaking/scenarios"),
+          fetch("/api/speaking/sessions")
+        ]);
 
-      if (!scenariosRes.ok) {
-        if (scenariosRes.status === 401) router.push("/login");
+        if (!scenariosRes.ok) {
+          if (scenariosRes.status === 401) router.push("/login");
+          if (scenariosRes.status === 403) router.push("/student");
+          setIsLoading(false);
+          return;
+        }
+
+        const scenariosData = await scenariosRes.json();
+        const sessionsData = sessionsRes.ok ? await sessionsRes.json() : { sessions: [] };
+
+        setScenarios(scenariosData.scenarios || []);
+        setSessions(sessionsData.sessions || []);
+      } catch (err) {
+        console.error("Failed to load speaking data:", err);
+      } finally {
         setIsLoading(false);
-        return;
       }
-
-      const scenariosData = await scenariosRes.json();
-      const sessionsData = sessionsRes.ok ? await sessionsRes.json() : { sessions: [] };
-
-      setScenarios(scenariosData.scenarios || []);
-      setSessions(sessionsData.sessions || []);
-      setIsLoading(false);
     }
 
     void loadData();
@@ -78,24 +127,31 @@ export default function SpeakingPage() {
     if (!selectedScenario || !transcript.trim()) return;
 
     setIsSubmitting(true);
-    const res = await fetch("/api/speaking/submit", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        scenarioId: selectedScenario.id,
-        transcript
-      })
-    });
+    try {
+      const res = await fetch("/api/speaking/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scenarioId: selectedScenario.id,
+          transcript
+        })
+      });
 
-    if (!res.ok) {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Gagal mengirimkan latihan berbicara.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const data = await res.json();
+      setResult(data.session);
+      setShowResult(true);
+    } catch (err) {
+      console.error("Submit speaking score error:", err);
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const data = await res.json();
-    setResult(data.session);
-    setShowResult(true);
-    setIsSubmitting(false);
   }
 
   function startNewPractice(scenario: SpeakingScenario) {
@@ -119,7 +175,21 @@ export default function SpeakingPage() {
   }
 
   function toggleRecording() {
-    setIsRecording(!isRecording);
+    if (!recognition) {
+      alert("Browser Anda tidak mendukung perekaman suara otomatis (Speech-to-Text). Silakan ketik langsung transkrip Anda.");
+      return;
+    }
+    if (isRecording) {
+      recognition.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognition.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Failed to start speech recognition:", err);
+      }
+    }
   }
 
   function formatTime(seconds: number): string {
@@ -130,99 +200,108 @@ export default function SpeakingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-hanken font-bold text-primary">Memuat Speaking Practice...</p>
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Memuat Speaking Practice...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-50 bg-surface-glass backdrop-blur-md border-b border-outline-variant px-margin-mobile md:px-gutter py-4">
-        <div className="max-w-container-max mx-auto flex justify-between items-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-primary tracking-tight">PRISM</Link>
-            <span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border border-red-200">
-              Speaking
+            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-red-200/50 dark:border-red-800/20">
+              Speaking Practice
             </span>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setView("scenarios")}
-              className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
-                view === "scenarios" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-low"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-hanken text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                view === "scenarios" ? "bg-red-600 text-white" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
               }`}
             >
               <span className="material-symbols-outlined text-lg">campaign</span>
-              Skenario
+              <span className="hidden sm:inline">Skenario</span>
             </button>
             <button
               onClick={() => setView("history")}
-              className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
-                view === "history" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-low"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-hanken text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                view === "history" ? "bg-red-600 text-white" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
               }`}
             >
               <span className="material-symbols-outlined text-lg">history</span>
-              Riwayat
+              <span className="hidden sm:inline">Riwayat</span>
             </button>
-            <Link href="/student" className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium">
-              <span className="material-symbols-outlined">close</span>
+            <Link href="/student" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-2xl">close</span>
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-container-max mx-auto px-margin-mobile md:px-gutter py-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">
+        {/* Scenarios grid view */}
         {view === "scenarios" && (
-          <div>
-            <div className="mb-8">
-              <h1 className="font-hanken text-3xl font-bold text-primary mb-2">Speaking Scenarios</h1>
-              <p className="font-inter text-on-surface-variant">Pilih skenario percakapan dan praktikkan kemampuan speaking Anda dengan AI feedback.</p>
+          <div className="space-y-8">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Latihan Percakapan</span>
+              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Speaking Scenarios</h1>
+              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
+                Pilih salah satu skenario simulasi komunikasi dan mulailah melatih pengucapan, intonasi, dan kelancaran berbicara Anda dengan asisten AI.
+              </p>
             </div>
 
             {scenarios.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-2xl border-2 border-dashed border-outline-variant p-12 text-center">
-                <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">mic</span>
-                <h2 className="font-hanken text-xl font-bold text-primary mb-2">Belum Ada Skenario</h2>
-                <p className="font-inter text-on-surface-variant">Skenario speaking akan tersedia setelah database di-seed.</p>
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
+                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">mic</span>
+                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Skenario</h2>
+                <p className="font-inter text-sm text-gray-405 dark:text-gray-500 max-w-xs mx-auto">
+                  Skenario berbicara lisan belum dimuat dalam sistem.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {scenarios.map((scenario) => (
-                  <div key={scenario.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 hover:shadow-xl hover:border-red-500/50 transition-all group">
-                    <div className="flex items-start justify-between mb-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                        scenario.level === "Advanced" ? "bg-status-advanced/10 text-status-advanced" :
-                        scenario.level === "Intermediate" ? "bg-status-intermediate/10 text-status-intermediate" :
-                        "bg-status-beginner/10 text-status-beginner"
-                      }`}>
-                        {scenario.level}
-                      </span>
-                      <span className="material-symbols-outlined text-red-600 text-2xl">mic</span>
+                  <div key={scenario.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-red-500/40 transition-all flex flex-col justify-between group">
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          scenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
+                          scenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
+                          "bg-red-50 text-red-600 dark:bg-red-500/10"
+                        }`}>
+                          {scenario.level}
+                        </span>
+                        <span className="material-symbols-outlined text-red-600">mic</span>
+                      </div>
+                      
+                      <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white group-hover:text-red-600 transition-colors">
+                        {scenario.title}
+                      </h3>
+                      <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+                        {scenario.scenario}
+                      </p>
                     </div>
                     
-                    <h3 className="font-hanken text-lg font-bold text-primary mb-3 group-hover:text-red-600 transition-colors">
-                      {scenario.title}
-                    </h3>
-                    <p className="font-inter text-sm text-on-surface-variant mb-4 line-clamp-3">
-                      {scenario.scenario}
-                    </p>
-                    
-                    <div className="flex items-center justify-between pt-4 border-t border-outline-variant">
-                      <span className="font-inter text-xs text-on-surface-variant flex items-center gap-1">
+                    <div className="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
+                      <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-sm">timer</span>
-                        {scenario.duration} detik
+                        Maks. {scenario.duration} detik
                       </span>
                       <button
                         onClick={() => startNewPractice(scenario)}
-                        className="flex items-center gap-2 bg-red-600 text-white font-hanken text-sm font-bold px-4 py-2 rounded-lg hover:shadow-lg transition-all group"
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken text-xs font-bold px-4 py-2.5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
                       >
                         Mulai Praktik
-                        <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                        <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
                       </button>
                     </div>
                   </div>
@@ -232,111 +311,106 @@ export default function SpeakingPage() {
           </div>
         )}
 
+        {/* Recording / Speaking Interface */}
         {view === "practice" && selectedScenario && !showResult && (
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-6">
-              <button
-                onClick={resetAndGoBack}
-                className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-inter text-sm font-medium mb-4"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-                Kembali ke Skenario
-              </button>
-              
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
-                <div className="flex items-start gap-3 mb-3">
-                  <span className="material-symbols-outlined text-red-600 text-2xl">campaign</span>
-                  <div className="flex-1">
-                    <h2 className="font-hanken text-xl font-bold text-primary mb-2">{selectedScenario.title}</h2>
-                    <p className="font-inter text-sm text-on-surface-variant">{selectedScenario.scenario}</p>
-                  </div>
+          <div className="max-w-4xl mx-auto space-y-6">
+            <button
+              onClick={resetAndGoBack}
+              className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">arrow_back</span>
+              Kembali ke Skenario
+            </button>
+            
+            <div className="bg-red-50/50 dark:bg-red-500/5 border border-red-200/50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-start gap-4">
+                <span className="material-symbols-outlined text-red-600 text-3xl p-2 rounded-xl bg-red-500/10">campaign</span>
+                <div className="flex-1 space-y-1">
+                  <h2 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">{selectedScenario.title}</h2>
+                  <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{selectedScenario.scenario}</p>
                 </div>
-                <div className="flex items-center gap-4 text-xs text-on-surface-variant">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">timer</span>
-                    Durasi: {selectedScenario.duration} detik
-                  </span>
-                  <span className={`px-2 py-1 rounded-full font-bold uppercase tracking-wider ${
-                    selectedScenario.level === "Advanced" ? "bg-status-advanced/10 text-status-advanced" :
-                    selectedScenario.level === "Intermediate" ? "bg-status-intermediate/10 text-status-intermediate" :
-                    "bg-status-beginner/10 text-status-beginner"
-                  }`}>
-                    {selectedScenario.level}
-                  </span>
-                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-gray-450 dark:text-gray-400 pt-3 border-t border-red-200/30">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base text-gray-400">timer</span>
+                  Waktu Skenario: {selectedScenario.duration} detik
+                </span>
+                <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  selectedScenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
+                  selectedScenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
+                  "bg-red-50 text-red-600 dark:bg-red-500/10"
+                }`}>
+                  {selectedScenario.level}
+                </span>
               </div>
             </div>
 
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 mb-6">
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 transition-all ${
-                  isRecording ? "bg-red-600 animate-pulse" : "bg-red-50"
-                }`}>
-                  <span className={`material-symbols-outlined text-6xl ${
-                    isRecording ? "text-white" : "text-red-600"
-                  }`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                    mic
-                  </span>
-                </div>
-                
-                <h3 className="font-hanken text-2xl font-bold text-primary mb-2">
-                  {isRecording ? "Sedang Merekam..." : "Siap untuk Merekam"}
-                </h3>
-                
+            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-8 py-14">
+              <div className="relative">
                 {isRecording && (
-                  <p className="font-jetbrains text-4xl font-bold text-red-600 mb-4">
-                    {formatTime(recordingTime)}
-                  </p>
+                  <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150 -z-10"></div>
                 )}
-                
-                <p className="font-inter text-sm text-on-surface-variant text-center max-w-md mb-8">
-                  {isRecording 
-                    ? "Bicaralah dengan jelas dan natural. Klik tombol di bawah untuk menghentikan rekaman."
-                    : "Klik tombol di bawah untuk mulai merekam jawaban Anda. Pastikan mikrofon aktif."
-                  }
-                </p>
-                
                 <button
                   onClick={toggleRecording}
-                  className={`inline-flex items-center gap-3 font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all ${
+                  className={`w-32 h-32 rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 cursor-pointer ${
                     isRecording 
-                      ? "bg-red-600 text-white" 
-                      : "bg-primary text-on-primary"
+                      ? "bg-red-600 text-white shadow-red-500/30" 
+                      : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-gray-200 dark:shadow-none"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-2xl">
+                  <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                     {isRecording ? "stop" : "mic"}
                   </span>
-                  {isRecording ? "Stop Recording" : "Start Recording"}
                 </button>
               </div>
 
-              <div className="pt-6 border-t border-outline-variant">
-                <h4 className="font-hanken text-sm font-bold text-primary mb-3">Atau Ketik Transkrip (Fallback)</h4>
+              <div className="text-center space-y-2">
+                <h3 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">
+                  {isRecording ? "Sedang Merekam Audio..." : "Mulai Rekam Suara"}
+                </h3>
+                
+                {isRecording ? (
+                  <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">
+                    {formatTime(recordingTime)}
+                  </p>
+                ) : (
+                  <p className="font-inter text-sm text-gray-400 dark:text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
+                  </p>
+                )}
+              </div>
+              
+              <div className="w-full max-w-xl pt-6 border-t border-gray-100 dark:border-gray-800 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-hanken text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                    Transkrip Jawaban Lisan Anda
+                  </h4>
+                  <span className="text-[10px] text-gray-400 font-inter font-semibold">(Diperlukan untuk penilaian AI)</span>
+                </div>
                 <textarea
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
-                  className="w-full min-h-[150px] p-4 rounded-xl border-2 border-outline-variant focus:border-red-600 focus:ring-0 transition-all font-inter bg-surface-bright resize-none"
-                  placeholder="Ketik transkrip jawaban lisan Anda di sini jika tidak bisa merekam audio..."
+                  className="w-full min-h-[140px] p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-inter focus:outline-none focus:ring-2 focus:ring-red-600/30 resize-none leading-relaxed"
+                  placeholder="Ketik transkrip dari apa yang Anda bicarakan di sini..."
                 />
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2">
               <button
                 onClick={() => void handleSubmit()}
                 disabled={isSubmitting || !transcript.trim()}
-                className="inline-flex items-center gap-2 bg-red-600 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Mengirim & Menilai...
+                    Menilai Pelafalan...
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined">send</span>
-                    Kirim untuk Dinilai
+                    Kirim Jawaban Speaking
                   </>
                 )}
               </button>
@@ -344,85 +418,92 @@ export default function SpeakingPage() {
           </div>
         )}
 
+        {/* AI response results view */}
         {view === "practice" && showResult && result && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant p-8 md:p-12 shadow-xl mb-6">
-              <div className="text-center mb-8">
-                <span className="material-symbols-outlined text-6xl text-red-600 mb-4 inline-block" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn">
+            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 shadow-xl space-y-8 text-center">
+              <div className="space-y-4">
+                <span className="material-symbols-outlined text-6xl text-red-600 animate-pulse" style={{ fontVariationSettings: "'FILL' 1" }}>
                   grade
                 </span>
-                <h2 className="font-hanken text-3xl font-bold text-primary mb-2">Hasil Penilaian</h2>
-                <div className="inline-flex items-center gap-3 bg-red-50 px-6 py-3 rounded-full border border-red-200">
-                  <span className="font-hanken text-4xl font-bold text-red-600">{result.score}</span>
-                  <span className="font-inter text-sm text-on-surface-variant">/ 100</span>
+                <h2 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Hasil Penilaian Speaking</h2>
+                <div className="inline-flex items-center gap-3 bg-red-50 dark:bg-red-500/10 px-6 py-3 rounded-full border border-red-200/50 dark:border-red-900/30">
+                  <span className="font-hanken text-5xl font-black text-red-600 dark:text-red-400">{result.score}</span>
+                  <span className="font-inter text-xs text-gray-400 uppercase tracking-widest font-semibold">/ 100</span>
                 </div>
               </div>
 
-              <div className="bg-surface-container-low rounded-2xl p-6 mb-6">
-                <h3 className="font-hanken text-lg font-bold text-primary mb-4 flex items-center gap-2">
-                  <span className="material-symbols-outlined">feedback</span>
-                  AI Feedback
+              <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 text-left space-y-4">
+                <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-red-600">feedback</span>
+                  Umpan Balik AI (Indonesia)
                 </h3>
-                <p className="font-inter text-sm text-on-surface-variant leading-relaxed whitespace-pre-line">
+                <div className="font-inter text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750">
                   {result.feedback}
-                </p>
+                </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-4 pt-2">
                 <button
                   onClick={() => startNewPractice(selectedScenario!)}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-6 py-3.5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
                 >
                   <span className="material-symbols-outlined">refresh</span>
-                  Coba Lagi
+                  Coba Praktik Lagi
                 </button>
                 <button
                   onClick={resetAndGoBack}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-surface-container-high text-primary font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all border border-outline-variant"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-hanken font-bold px-6 py-3.5 rounded-xl transition-all border border-transparent dark:border-gray-700 cursor-pointer"
                 >
-                  Pilih Skenario Lain
+                  Kembali ke Skenario
                 </button>
               </div>
             </div>
           </div>
         )}
 
+        {/* History of sessions view */}
         {view === "history" && (
-          <div>
-            <div className="mb-8">
-              <h1 className="font-hanken text-3xl font-bold text-primary mb-2">Riwayat Sesi</h1>
-              <p className="font-inter text-on-surface-variant">Lihat semua sesi speaking yang pernah Anda lakukan dan nilai yang didapat.</p>
+          <div className="space-y-8">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Hasil Latihan Lisan</span>
+              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Riwayat Sesi Speaking</h1>
+              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">Tinjau seluruh rekaman dan transkrip skenario lisan yang telah dinilai AI.</p>
             </div>
 
             {sessions.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-2xl border-2 border-dashed border-outline-variant p-12 text-center">
-                <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4 inline-block">history</span>
-                <h2 className="font-hanken text-xl font-bold text-primary mb-2">Belum Ada Sesi</h2>
-                <p className="font-inter text-on-surface-variant mb-6">Mulai praktik speaking pertama Anda untuk melihat riwayat di sini.</p>
-                <button
-                  onClick={() => setView("scenarios")}
-                  className="inline-flex items-center gap-2 bg-red-600 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all"
-                >
-                  Lihat Skenario
-                  <span className="material-symbols-outlined">arrow_forward</span>
-                </button>
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
+                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">history</span>
+                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Sesi Speaking</h2>
+                <p className="font-inter text-sm text-gray-400 dark:text-gray-500 max-w-xs mx-auto mb-4">
+                  Selesaikan latihan percakapan pertama Anda untuk melihat riwayat performa lisan di sini.
+                </p>
+                <div>
+                  <button
+                    onClick={() => setView("scenarios")}
+                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-hanken text-xs font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all cursor-pointer"
+                  >
+                    Cari Skenario Percakapan
+                    <span className="material-symbols-outlined">arrow_forward</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
                 {sessions.map((session) => (
-                  <div key={session.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 hover:shadow-lg transition-all">
+                  <div key={session.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-md transition-all">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="font-hanken text-lg font-bold text-primary mb-1">{session.scenario.title}</h3>
-                        <p className="font-inter text-xs text-on-surface-variant">
-                          {new Date(session.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      <div className="space-y-1 flex-1">
+                        <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">{session.scenario.title}</h3>
+                        <p className="font-inter text-xs text-gray-450 dark:text-gray-555">
+                          Diselesaikan pada {new Date(session.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB
                         </p>
                       </div>
                       
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 border-l border-gray-100 dark:border-gray-800 pl-0 md:pl-6">
                         <div className="text-center">
-                          <p className="font-jetbrains text-3xl font-bold text-red-600">{session.score}</p>
-                          <p className="font-inter text-xs text-on-surface-variant">Skor</p>
+                          <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">{session.score}</p>
+                          <p className="font-inter text-[9px] uppercase font-bold text-gray-400 tracking-wider">Skor</p>
                         </div>
                       </div>
                     </div>
