@@ -14,6 +14,9 @@ const SECTION_ORDER = [
   SectionType.SPEAKING,
 ];
 
+
+const startLocks = new Set<string>();
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUserFromRequest(request);
@@ -21,47 +24,88 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user already has an active or completed attempt
-    const existingAttempt = await prisma.testAttempt.findFirst({
-      where: {
-        userId: user.id,
-        status: {
-          in: [
-            TestAttemptStatus.IN_PROGRESS,
-            TestAttemptStatus.SUBMITTED,
-            TestAttemptStatus.PROCESSING,
-            TestAttemptStatus.COMPLETED,
-          ],
-        },
-      },
-      include: { sectionAttempts: true },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // If already completed/processing, block
-    if (
-      existingAttempt &&
-      (existingAttempt.status === TestAttemptStatus.COMPLETED ||
-        existingAttempt.status === TestAttemptStatus.SUBMITTED ||
-        existingAttempt.status === TestAttemptStatus.PROCESSING)
-    ) {
-      return NextResponse.json(
-        { error: 'You have already completed a placement test', code: 'ALREADY_COMPLETED' },
-        { status: 409 }
-      );
+    // Handle concurrent request race condition (e.g., React StrictMode double fetch)
+    if (startLocks.has(user.id)) {
+      for (let i = 0; i < 15; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const activeAttempt = await prisma.testAttempt.findFirst({
+          where: {
+            userId: user.id,
+            status: TestAttemptStatus.IN_PROGRESS,
+          },
+          include: { sectionAttempts: true },
+        });
+        if (activeAttempt && activeAttempt.sectionAttempts.some((s) => s.feedback)) {
+          return NextResponse.json(
+            { message: 'Continuing existing test', testAttemptId: activeAttempt.id },
+            { status: 200 }
+          );
+        }
+      }
     }
 
-    // If IN_PROGRESS and already has sections with feedback, allow continuation
-    if (existingAttempt && existingAttempt.status === TestAttemptStatus.IN_PROGRESS) {
-      const hasQuestions = existingAttempt.sectionAttempts.some((s) => s.feedback);
-      if (hasQuestions) {
+    startLocks.add(user.id);
+
+    try {
+      // Clean up duplicate IN_PROGRESS attempts if any exist (self-healing)
+      const inProgressAttempts = await prisma.testAttempt.findMany({
+        where: {
+          userId: user.id,
+          status: TestAttemptStatus.IN_PROGRESS,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (inProgressAttempts.length > 1) {
+        const keepAttemptId = inProgressAttempts[0].id;
+        const deleteIds = inProgressAttempts.slice(1).map((a) => a.id);
+        await prisma.testAttempt.deleteMany({
+          where: {
+            id: { in: deleteIds },
+          },
+        });
+      }
+
+      // Check if user already has an active or completed attempt
+      const existingAttempt = await prisma.testAttempt.findFirst({
+        where: {
+          userId: user.id,
+          status: {
+            in: [
+              TestAttemptStatus.IN_PROGRESS,
+              TestAttemptStatus.SUBMITTED,
+              TestAttemptStatus.PROCESSING,
+              TestAttemptStatus.COMPLETED,
+            ],
+          },
+        },
+        include: { sectionAttempts: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // If already completed/processing, block
+      if (
+        existingAttempt &&
+        (existingAttempt.status === TestAttemptStatus.COMPLETED ||
+          existingAttempt.status === TestAttemptStatus.SUBMITTED ||
+          existingAttempt.status === TestAttemptStatus.PROCESSING)
+      ) {
         return NextResponse.json(
-          { message: 'Continuing existing test', testAttemptId: existingAttempt.id },
-          { status: 200 }
+          { error: 'You have already completed a placement test', code: 'ALREADY_COMPLETED' },
+          { status: 409 }
         );
       }
-      // IN_PROGRESS but no questions yet — fall through to create them
-    }
+
+      // If IN_PROGRESS and already has sections with feedback, allow continuation
+      if (existingAttempt && existingAttempt.status === TestAttemptStatus.IN_PROGRESS) {
+        const hasQuestions = existingAttempt.sectionAttempts.some((s) => s.feedback);
+        if (hasQuestions) {
+          return NextResponse.json(
+            { message: 'Continuing existing test', testAttemptId: existingAttempt.id },
+            { status: 200 }
+          );
+        }
+      }
 
     // Create or reuse test attempt
     let testAttemptId: string;
@@ -143,6 +187,9 @@ export async function POST(request: NextRequest) {
       { message: 'Test started successfully', testAttemptId },
       { status: 200 }
     );
+    } finally {
+      startLocks.delete(user.id);
+    }
   } catch (error) {
     console.error('Start test error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

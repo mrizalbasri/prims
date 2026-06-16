@@ -149,6 +149,11 @@ export default function StudentTestPage() {
     void bootstrap();
   }, [router]);
 
+  // Scroll to top of window smoothly when section index changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [sectionIndex]);
+
   const progress = useMemo(() => {
     if (sections.length === 0) return 0;
     return Math.round(((sectionIndex + 1) / sections.length) * 100);
@@ -447,15 +452,26 @@ export default function StudentTestPage() {
                         Gunakan mikrofon yang berfungsi dengan baik. Ucapkan kalimat di atas dengan lantang dan jelas dalam bahasa Inggris.
                       </p>
                       
+                      {speakingResponse && !isRecording && (
+                        <button
+                          type="button"
+                          onClick={() => setSpeakingResponse("")}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/35 dark:text-red-400 dark:hover:bg-red-900/20 text-xs font-bold transition-all cursor-pointer bg-white dark:bg-gray-800"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                          Ulangi Rekaman (Reset)
+                        </button>
+                      )}
+                      
                       <div className="w-full space-y-1.5 pt-2">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
-                          Transkrip Suara (Bisa Diedit Manual)
+                          Transkrip Rekaman Suara (Terisi Otomatis)
                         </span>
                         <textarea
                           value={speakingResponse}
-                          onChange={(e) => setSpeakingResponse(e.target.value)}
-                          className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 font-inter text-xs text-gray-900 dark:text-white resize-none h-24 focus:outline-none focus:ring-2 focus:ring-red-500/20 leading-relaxed"
-                          placeholder="Hasil rekaman suara akan otomatis terketik di sini, atau Anda bisa mengetiknya langsung jika mikrofon tidak aktif..."
+                          readOnly
+                          className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-750 bg-gray-50/50 dark:bg-gray-900/40 font-inter text-xs text-gray-500 dark:text-gray-400 resize-none h-24 focus:outline-none leading-relaxed cursor-not-allowed"
+                          placeholder="Hasil rekaman suara Anda akan terketik di sini secara otomatis saat Anda berbicara..."
                         />
                       </div>
                     </div>
