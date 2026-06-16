@@ -19,6 +19,7 @@ export default function AdminMobileNav({
   const menuItems = [
     { id: "analytics", label: "Analytics & Hasil Tes", icon: "analytics" },
     { id: "users", label: "Manajemen Pengguna", icon: "group" },
+    { id: "questions", label: "Kelola Bank Soal", icon: "quiz" },
     { id: "vocabulary", label: "Kosa Kata (Vocab)", icon: "style" },
     { id: "writing", label: "Topik Menulis (Writing)", icon: "draw" },
     { id: "speaking", label: "Skenario Bicara (Speaking)", icon: "record_voice_over" },

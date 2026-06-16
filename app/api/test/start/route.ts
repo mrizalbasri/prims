@@ -154,15 +154,42 @@ export async function POST(request: NextRequest) {
       ) {
         const count =
           sectionAttempt.sectionType === SectionType.READING ? 10 : 15;
-        const rawQuestions = getRandomQuestions(sectionAttempt.sectionType, count);
+        
+        // Fetch questions from database
+        const dbQuestions = await prisma.question.findMany({
+          where: {
+            sectionType: sectionAttempt.sectionType,
+            isActive: true,
+          },
+        });
+
+        let selectedQuestions = [];
+        if (dbQuestions.length > 0) {
+          // Shuffle database questions
+          selectedQuestions = [...dbQuestions]
+            .sort(() => Math.random() - 0.5)
+            .slice(0, Math.min(count, dbQuestions.length));
+        } else {
+          // Fallback to static questions
+          selectedQuestions = getRandomQuestions(sectionAttempt.sectionType, count);
+        }
 
         feedbackJson = {
-          questions: rawQuestions.map((q, idx) => ({
-            id: `${sectionAttempt.sectionType}_${idx}`,
-            questionText: q.questionText,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-          })),
+          questions: selectedQuestions.map((q, idx) => {
+            // Get database question ID or fallback
+            const dbId = 'id' in q ? (q as any).id : `static_${idx}`;
+            // Ensure ID starts with sectionType (e.g. VOCABULARY_cju...) to pass the startsWith check in save/route.ts
+            const questionId = dbId.startsWith(sectionAttempt.sectionType)
+              ? dbId
+              : `${sectionAttempt.sectionType}_${dbId}`;
+
+            return {
+              id: questionId,
+              questionText: q.questionText,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+            };
+          }),
         };
       } else {
         // WRITING or SPEAKING
