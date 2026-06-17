@@ -120,7 +120,7 @@ async function processSpeakingScoring(
   transcriptText: string,
   scenarioTitle: string,
   scenarioDescription: string,
-  rubric: any
+  rubric: unknown
 ): Promise<void> {
   try {
     // Update status to processing
@@ -135,9 +135,9 @@ async function processSpeakingScoring(
     const { score, feedback } = await scoreSpeakingWithAI(transcriptText, promptText, rubric);
 
     // Extract dimension scores from feedback if available
-    const fluencyScore = feedback?.fluency ? 75 : score * 0.9;
-    const pronunciationScore = feedback?.pronunciation ? 70 : score * 0.85;
-    const grammarScore = feedback?.grammar ? 80 : score * 0.95;
+    const fluencyScore = typeof feedback?.fluencyScore === 'number' ? feedback.fluencyScore : (feedback?.fluency ? 75 : score * 0.9);
+    const pronunciationScore = typeof feedback?.pronunciationScore === 'number' ? feedback.pronunciationScore : (feedback?.pronunciation ? 70 : score * 0.85);
+    const grammarScore = typeof feedback?.grammarScore === 'number' ? feedback.grammarScore : (feedback?.grammar ? 80 : score * 0.95);
 
     // Update session with scores
     await prisma.speakingSession.update({

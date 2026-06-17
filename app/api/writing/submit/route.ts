@@ -117,7 +117,7 @@ async function processWritingScoring(
   submissionId: string,
   responseText: string,
   promptText: string,
-  rubric: any
+  rubric: unknown
 ): Promise<void> {
   try {
     // Update status to processing
@@ -130,9 +130,9 @@ async function processWritingScoring(
     const { score, feedback } = await scoreWritingWithAI(responseText, promptText, rubric);
 
     // Extract dimension scores from feedback if available
-    const grammarScore = feedback?.grammar ? 75 : score * 0.9; // Fallback calculation
-    const clarityScore = feedback?.content ? 80 : score * 0.95;
-    const structureScore = feedback?.organization ? 70 : score * 0.85;
+    const grammarScore = typeof feedback?.grammarScore === 'number' ? feedback.grammarScore : (feedback?.grammar ? 75 : score * 0.9);
+    const clarityScore = typeof feedback?.clarityScore === 'number' ? feedback.clarityScore : (feedback?.content ? 80 : score * 0.95);
+    const structureScore = typeof feedback?.structureScore === 'number' ? feedback.structureScore : (feedback?.organization ? 70 : score * 0.85);
 
     // Update submission with scores
     await prisma.writingSubmission.update({

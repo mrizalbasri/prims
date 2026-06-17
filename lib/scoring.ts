@@ -159,9 +159,20 @@ function parseAiJson(text: string): { score: number; feedback: any } {
   }
 
   const parsed = JSON.parse(jsonMatch[0]);
+  const score = Math.min(100, Math.max(0, Number(parsed.score || 0)));
+  const feedback = typeof parsed.feedback === 'object' && parsed.feedback !== null 
+    ? { ...parsed.feedback } 
+    : { message: String(parsed.feedback || '') };
+  
+  if ('grammarScore' in parsed) feedback.grammarScore = Number(parsed.grammarScore);
+  if ('clarityScore' in parsed) feedback.clarityScore = Number(parsed.clarityScore);
+  if ('structureScore' in parsed) feedback.structureScore = Number(parsed.structureScore);
+  if ('fluencyScore' in parsed) feedback.fluencyScore = Number(parsed.fluencyScore);
+  if ('pronunciationScore' in parsed) feedback.pronunciationScore = Number(parsed.pronunciationScore);
+
   return {
-    score: Math.min(100, Math.max(0, Number(parsed.score || 0))),
-    feedback: parsed.feedback,
+    score,
+    feedback,
   };
 }
 
@@ -275,7 +286,10 @@ Please evaluate the response and provide:
 
 Return your response in JSON format:
 {
-  "score": <number 0-100>,
+  "score": <number 0-100 for overall score>,
+  "grammarScore": <number 0-100 for grammar quality>,
+  "clarityScore": <number 0-100 for content clarity and relevance>,
+  "structureScore": <number 0-100 for organization/coherence>,
   "feedback": {
     "grammar": "<feedback in Indonesian>",
     "vocabulary": "<feedback in Indonesian>",
@@ -284,7 +298,7 @@ Return your response in JSON format:
     "suggestions": ["<suggestion 1>", "<suggestion 2>", ...]
   }
 }
-`;
+`
 
   try {
     // 1. Try MiniMax (TokenRouter) first for Writing
@@ -355,7 +369,10 @@ Please evaluate the response and provide:
 
 Return your response in JSON format:
 {
-  "score": <number 0-100>,
+  "score": <number 0-100 for overall score>,
+  "fluencyScore": <number 0-100 for fluency and rhythm>,
+  "pronunciationScore": <number 0-100 for pronunciation and clarity>,
+  "grammarScore": <number 0-100 for grammar usage>,
   "feedback": {
     "grammar": "<feedback in Indonesian>",
     "vocabulary": "<feedback in Indonesian>",
@@ -364,7 +381,7 @@ Return your response in JSON format:
     "suggestions": ["<suggestion 1>", "<suggestion 2>", ...]
   }
 }
-`;
+`
 
   try {
     // 1. Try Gemini (Native Audio Dialog) first for Speaking

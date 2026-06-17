@@ -1,8 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+interface SpeechRecognitionInstance {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: (event: { resultIndex: number; results: { length: number; [index: number]: { isFinal: boolean; [index: number]: { transcript: string } } } }) => void;
+  onerror: (event: { error: string }) => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
+}
+
+type FeedbackObject = {
+  grammar?: string;
+  vocabulary?: string;
+  content?: string;
+  fluency?: string;
+  suggestions?: string[];
+};
 
 type SpeakingScenario = {
   id: string;
@@ -15,7 +34,13 @@ type SpeakingScenario = {
 type Session = {
   id: string;
   score: number;
-  feedback: string;
+  scores?: {
+    fluency: number;
+    pronunciation: number;
+    grammar: number;
+    overall: number;
+  };
+  feedback: string | FeedbackObject | null;
   submittedAt: string;
   scenario: {
     title: string;
@@ -35,18 +60,28 @@ export default function SpeakingPage() {
   const [result, setResult] = useState<Session | null>(null);
   const [view, setView] = useState<"scenarios" | "practice" | "history">("scenarios");
   const [recordingTime, setRecordingTime] = useState(0);
-  const [recognition, setRecognition] = useState<any>(null);
+  const [recognition, setRecognition] = useState<SpeechRecognitionInstance | null>(null);
+
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition =
+        (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance }).SpeechRecognition ||
+        (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance }).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
         rec.lang = "en-US";
         
-        rec.onresult = (event: any) => {
+        rec.onresult = (event: { resultIndex: number; results: { length: number; [index: number]: { isFinal: boolean; [index: number]: { transcript: string } } } }) => {
           let finalTranscript = "";
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
@@ -58,7 +93,7 @@ export default function SpeakingPage() {
           }
         };
 
-        rec.onerror = (event: any) => {
+        rec.onerror = (event: { error: string }) => {
           console.error("Speech recognition error:", event.error);
           setIsRecording(false);
           if (event.error === 'not-allowed') {
@@ -76,7 +111,9 @@ export default function SpeakingPage() {
           setIsRecording(false);
         };
 
-        setRecognition(rec);
+        setTimeout(() => {
+          setRecognition(rec);
+        }, 0);
       }
     }
   }, []);
@@ -100,7 +137,13 @@ export default function SpeakingPage() {
         const sessionsData = sessionsRes.ok ? await sessionsRes.json() : { sessions: [] };
 
         setScenarios(scenariosData.scenarios || []);
-        setSessions(sessionsData.sessions || []);
+        
+        // Map overallScore to score
+        const mappedSessions = (sessionsData.sessions || []).map((s: { id: string; overallScore?: number; score?: number; scenario: { title: string }; completedAt?: string; startedAt?: string }) => ({
+          ...s,
+          score: s.overallScore ?? s.score ?? 0,
+        }));
+        setSessions(mappedSessions);
       } catch (err) {
         console.error("Failed to load speaking data:", err);
       } finally {
@@ -118,7 +161,9 @@ export default function SpeakingPage() {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     } else {
-      setRecordingTime(0);
+      setTimeout(() => {
+        setRecordingTime(0);
+      }, 0);
     }
     return () => clearInterval(interval);
   }, [isRecording]);
@@ -145,13 +190,121 @@ export default function SpeakingPage() {
       }
 
       const data = await res.json();
-      setResult(data.session);
-      setShowResult(true);
+      const sessionId = data.session?.id;
+
+      if (!sessionId) {
+        alert("Gagal memproses ID sesi.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Start polling status
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/speaking/sessions?id=${sessionId}`);
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData && statusData.session) {
+              const s = statusData.session;
+              if (s.status === "COMPLETED") {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                setResult({
+                  id: s.id,
+                  score: s.scores?.overall ?? 0,
+                  scores: s.scores,
+                  feedback: s.feedback,
+                  submittedAt: s.completedAt || s.startedAt,
+                  scenario: s.scenario
+                });
+                setShowResult(true);
+                setIsSubmitting(false);
+
+                // Refresh history list
+                const historyRes = await fetch("/api/speaking/sessions");
+                if (historyRes.ok) {
+                  const historyData = await historyRes.json();
+                  const mapped = (historyData.sessions || []).map((sess: { id: string; overallScore?: number; score?: number; scenario: { title: string }; completedAt?: string; startedAt?: string }) => ({
+                    ...sess,
+                    score: sess.overallScore ?? sess.score ?? 0,
+                  }));
+                  setSessions(mapped);
+                }
+              } else if (s.status === "FAILED") {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                alert("Evaluasi AI gagal. Silakan coba lagi.");
+                setIsSubmitting(false);
+              }
+            }
+          }
+        } catch (pollErr) {
+          console.error("Error polling speaking session:", pollErr);
+        }
+      }, 3000);
+
     } catch (err) {
       console.error("Submit speaking score error:", err);
-    } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function renderFeedback(feedback: string | FeedbackObject | null | undefined) {
+    if (!feedback) return null;
+    
+    // If it's a string, just render it directly
+    if (typeof feedback === "string") {
+      return (
+        <div className="font-inter text-sm text-gray-750 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750 shadow-sm">
+          {feedback}
+        </div>
+      );
+    }
+
+    // Otherwise, assume it's the structured feedback object
+    const categories: { key: keyof Omit<FeedbackObject, "suggestions">; label: string; icon: string; color: string; bg: string }[] = [
+      { key: "grammar", label: "Grammar & Structure", icon: "spellcheck", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10" },
+      { key: "vocabulary", label: "Vocabulary Usage", icon: "style", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10" },
+      { key: "content", label: "Content & Relevance", icon: "menu_book", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-500/10" },
+      { key: "fluency", label: "Fluency & Coherence", icon: "graphic_eq", color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-500/10" }
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {categories.map((cat) => {
+            const explanation = feedback[cat.key];
+            if (!explanation) return null;
+            return (
+              <div key={cat.key} className="bg-white dark:bg-gray-850 p-5 rounded-2xl border border-gray-150 dark:border-gray-750 shadow-sm space-y-3 text-left">
+                <div className="flex items-center gap-2">
+                  <span className={`material-symbols-outlined p-1.5 rounded-lg text-sm ${cat.color} ${cat.bg}`}>{cat.icon}</span>
+                  <h4 className="font-hanken text-sm font-bold text-gray-900 dark:text-white">{cat.label}</h4>
+                </div>
+                <p className="font-inter text-xs text-gray-650 dark:text-gray-300 leading-relaxed">
+                  {explanation}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {feedback.suggestions && Array.isArray(feedback.suggestions) && feedback.suggestions.length > 0 && (
+          <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 rounded-2xl p-6 space-y-3 text-left">
+            <h4 className="font-hanken text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+              <span className="material-symbols-outlined">lightbulb</span>
+              Rekomendasi Perbaikan
+            </h4>
+            <ul className="space-y-2">
+              {feedback.suggestions.map((suggestion: string, idx: number) => (
+                <li key={idx} className="flex gap-2.5 items-start font-inter text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                  <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">check_circle</span>
+                  <span>{suggestion}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
   }
 
   function startNewPractice(scenario: SpeakingScenario) {
@@ -345,76 +498,87 @@ export default function SpeakingPage() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-8 py-14">
-              <div className="relative">
-                {isRecording && (
-                  <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150 -z-10"></div>
-                )}
-                <button
-                  onClick={toggleRecording}
-                  className={`w-32 h-32 rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 cursor-pointer ${
-                    isRecording 
-                      ? "bg-red-600 text-white shadow-red-500/30" 
-                      : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-gray-200 dark:shadow-none"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    {isRecording ? "stop" : "mic"}
-                  </span>
-                </button>
-              </div>
-
-              <div className="text-center space-y-2">
-                <h3 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">
-                  {isRecording ? "Sedang Merekam Audio..." : "Mulai Rekam Suara"}
-                </h3>
-                
-                {isRecording ? (
-                  <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">
-                    {formatTime(recordingTime)}
-                  </p>
-                ) : (
-                  <p className="font-inter text-sm text-gray-400 dark:text-gray-500 max-w-sm mx-auto leading-relaxed">
-                    Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
-                  </p>
-                )}
-              </div>
-              
-              <div className="w-full max-w-xl pt-6 border-t border-gray-100 dark:border-gray-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-hanken text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                    Transkrip Jawaban Lisan Anda
-                  </h4>
-                  <span className="text-[10px] text-gray-400 font-inter font-semibold">(Diperlukan untuk penilaian AI)</span>
+            {isSubmitting ? (
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-6 py-14 animate-fadeIn">
+                <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 rounded-full border-4 border-red-100 dark:border-red-950" />
+                  <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin animate-duration-1000" />
+                  <div className="absolute inset-2 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center animate-pulse">
+                    <span className="material-symbols-outlined text-3xl text-red-600 dark:text-red-400 animate-pulse">smart_toy</span>
+                  </div>
                 </div>
-                <textarea
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                  className="w-full min-h-[140px] p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-inter focus:outline-none focus:ring-2 focus:ring-red-600/30 resize-none leading-relaxed"
-                  placeholder="Ketik transkrip dari apa yang Anda bicarakan di sini..."
-                />
+                <div className="text-center space-y-2">
+                  <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">AI Sedang Mengevaluasi Suara Anda</h3>
+                  <p className="font-inter text-xs text-gray-450 dark:text-gray-550 max-w-xs mx-auto leading-relaxed">
+                    Sistem sedang menganalisis kefasihan lisan, pengucapan, tata bahasa, dan konteks jawaban Anda. Proses ini memerlukan beberapa saat.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-8 py-14">
+                  <div className="relative">
+                    {isRecording && (
+                      <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150 -z-10"></div>
+                    )}
+                    <button
+                      onClick={toggleRecording}
+                      className={`w-32 h-32 rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 cursor-pointer border-0 ${
+                        isRecording 
+                          ? "bg-red-600 text-white shadow-red-500/30" 
+                          : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-gray-200 dark:shadow-none"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {isRecording ? "stop" : "mic"}
+                      </span>
+                    </button>
+                  </div>
 
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => void handleSubmit()}
-                disabled={isSubmitting || !transcript.trim()}
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Menilai Pelafalan...
-                  </>
-                ) : (
-                  <>
+                  <div className="text-center space-y-2">
+                    <h3 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">
+                      {isRecording ? "Sedang Merekam Audio..." : "Mulai Rekam Suara"}
+                    </h3>
+                    
+                    {isRecording ? (
+                      <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">
+                        {formatTime(recordingTime)}
+                      </p>
+                    ) : (
+                      <p className="font-inter text-sm text-gray-400 dark:text-gray-555 max-w-sm mx-auto leading-relaxed">
+                        Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="w-full max-w-xl pt-6 border-t border-gray-100 dark:border-gray-800 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-hanken text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                        Transkrip Jawaban Lisan Anda
+                      </h4>
+                      <span className="text-[10px] text-gray-400 font-inter font-semibold">(Diperlukan untuk penilaian AI)</span>
+                    </div>
+                    <textarea
+                      value={transcript}
+                      onChange={(e) => setTranscript(e.target.value)}
+                      className="w-full min-h-[140px] p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-850 text-gray-900 dark:text-white text-sm font-inter focus:outline-none focus:ring-2 focus:ring-red-600/30 resize-none leading-relaxed"
+                      placeholder="Ketik transkrip dari apa yang Anda bicarakan di sini..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => void handleSubmit()}
+                    disabled={isSubmitting || !transcript.trim()}
+                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer border-0"
+                  >
                     <span className="material-symbols-outlined">send</span>
                     Kirim Jawaban Speaking
-                  </>
-                )}
-              </button>
-            </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -433,14 +597,27 @@ export default function SpeakingPage() {
                 </div>
               </div>
 
-              <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 text-left space-y-4">
-                <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              {result.scores && (
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Fluency", val: result.scores.fluency, color: "text-red-600 dark:text-red-400" },
+                    { label: "Pronunciation", val: result.scores.pronunciation, color: "text-blue-600 dark:text-blue-400" },
+                    { label: "Grammar", val: result.scores.grammar, color: "text-purple-600 dark:text-purple-400" }
+                  ].map((s) => (
+                    <div key={s.label} className="bg-gray-50 dark:bg-gray-900/65 p-4 rounded-xl border border-gray-150 dark:border-gray-800 text-center space-y-1">
+                      <p className="font-inter text-[10px] text-gray-450 dark:text-gray-550 uppercase font-bold tracking-wider">{s.label}</p>
+                      <p className={`font-mono text-xl font-black ${s.color}`}>{Math.round(s.val)}%</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <h3 className="font-hanken text-base font-bold text-gray-955 dark:text-white flex items-center gap-2">
                   <span className="material-symbols-outlined text-red-600">feedback</span>
                   Umpan Balik AI (Indonesia)
                 </h3>
-                <div className="font-inter text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750">
-                  {result.feedback}
-                </div>
+                {renderFeedback(result.feedback)}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 pt-2">

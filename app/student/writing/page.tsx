@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -12,10 +12,24 @@ type WritingPrompt = {
   minWords: number;
 };
 
+type FeedbackObject = {
+  grammar?: string;
+  vocabulary?: string;
+  content?: string;
+  organization?: string;
+  suggestions?: string[];
+};
+
 type Submission = {
   id: string;
   score: number;
-  feedback: string;
+  scores?: {
+    grammar: number;
+    clarity: number;
+    structure: number;
+    overall: number;
+  };
+  feedback: string | FeedbackObject | null;
   submittedAt: string;
   prompt: {
     title: string;
@@ -33,6 +47,14 @@ export default function WritingPage() {
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<Submission | null>(null);
   const [view, setView] = useState<"prompts" | "write" | "history">("prompts");
+
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   const wordCount = essay.trim().split(/\s+/).filter(w => w.length > 0).length;
 
@@ -55,7 +77,13 @@ export default function WritingPage() {
         const submissionsData = submissionsRes.ok ? await submissionsRes.json() : { submissions: [] };
 
         setPrompts(promptsData.prompts || []);
-        setSubmissions(submissionsData.submissions || []);
+        
+        // Map overallScore to score
+        const mappedSubmissions = (submissionsData.submissions || []).map((s: { id: string; overallScore?: number; score?: number; prompt: { title: string }; submittedAt: string }) => ({
+          ...s,
+          score: s.overallScore ?? s.score ?? 0,
+        }));
+        setSubmissions(mappedSubmissions);
       } catch (err) {
         console.error("Failed to load writing data:", err);
       } finally {
@@ -88,13 +116,121 @@ export default function WritingPage() {
       }
 
       const data = await res.json();
-      setResult(data.submission);
-      setShowResult(true);
+      const submissionId = data.submission?.id;
+
+      if (!submissionId) {
+        alert("Gagal memproses ID pengiriman.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Start polling status
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/writing/submissions?id=${submissionId}`);
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData && statusData.submission) {
+              const sub = statusData.submission;
+              if (sub.status === "COMPLETED") {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                setResult({
+                  id: sub.id,
+                  score: sub.scores?.overall ?? 0,
+                  scores: sub.scores,
+                  feedback: sub.feedback,
+                  submittedAt: sub.submittedAt,
+                  prompt: sub.prompt
+                });
+                setShowResult(true);
+                setIsSubmitting(false);
+
+                // Refresh history list
+                const historyRes = await fetch("/api/writing/submissions");
+                if (historyRes.ok) {
+                  const historyData = await historyRes.json();
+                  const mapped = (historyData.submissions || []).map((s: { id: string; overallScore?: number; score?: number; prompt: { title: string }; submittedAt: string }) => ({
+                    ...s,
+                    score: s.overallScore ?? s.score ?? 0,
+                  }));
+                  setSubmissions(mapped);
+                }
+              } else if (sub.status === "FAILED") {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                alert("Evaluasi AI gagal. Silakan coba lagi.");
+                setIsSubmitting(false);
+              }
+            }
+          }
+        } catch (pollErr) {
+          console.error("Error polling writing submission:", pollErr);
+        }
+      }, 3000);
+
     } catch (err) {
       console.error("Submit essay error:", err);
-    } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function renderFeedback(feedback: string | FeedbackObject | null | undefined) {
+    if (!feedback) return null;
+    
+    // If it's a string, just render it directly
+    if (typeof feedback === "string") {
+      return (
+        <div className="font-inter text-sm text-gray-750 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750 shadow-sm">
+          {feedback}
+        </div>
+      );
+    }
+
+    // Otherwise, assume it's the structured feedback object
+    const categories: { key: keyof Omit<FeedbackObject, "suggestions">; label: string; icon: string; color: string; bg: string }[] = [
+      { key: "grammar", label: "Grammar & Structure", icon: "spellcheck", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10" },
+      { key: "vocabulary", label: "Vocabulary Usage", icon: "style", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10" },
+      { key: "content", label: "Content & Relevance", icon: "menu_book", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-500/10" },
+      { key: "organization", label: "Coherence & Organization", icon: "schema", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-500/10" }
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {categories.map((cat) => {
+            const explanation = feedback[cat.key];
+            if (!explanation) return null;
+            return (
+              <div key={cat.key} className="bg-white dark:bg-gray-850 p-5 rounded-2xl border border-gray-150 dark:border-gray-750 shadow-sm space-y-3 text-left">
+                <div className="flex items-center gap-2">
+                  <span className={`material-symbols-outlined p-1.5 rounded-lg text-sm ${cat.color} ${cat.bg}`}>{cat.icon}</span>
+                  <h4 className="font-hanken text-sm font-bold text-gray-900 dark:text-white">{cat.label}</h4>
+                </div>
+                <p className="font-inter text-xs text-gray-650 dark:text-gray-300 leading-relaxed">
+                  {explanation}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {feedback.suggestions && Array.isArray(feedback.suggestions) && feedback.suggestions.length > 0 && (
+          <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 rounded-2xl p-6 space-y-3 text-left">
+            <h4 className="font-hanken text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+              <span className="material-symbols-outlined">lightbulb</span>
+              Rekomendasi Perbaikan
+            </h4>
+            <ul className="space-y-2">
+              {feedback.suggestions.map((suggestion: string, idx: number) => (
+                <li key={idx} className="flex gap-2.5 items-start font-inter text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                  <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">check_circle</span>
+                  <span>{suggestion}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
   }
 
   function startNewEssay(prompt: WritingPrompt) {
@@ -231,7 +367,8 @@ export default function WritingPage() {
           <div className="max-w-4xl mx-auto space-y-6">
             <button
               onClick={resetAndGoBack}
-              className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-lg">arrow_back</span>
               Kembali ke Prompts
@@ -260,48 +397,59 @@ export default function WritingPage() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
-                <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white">Workspace Penulisan</h3>
-                <div className="flex items-center gap-2">
-                  <span className={`font-mono text-sm font-bold ${
-                    wordCount >= selectedPrompt.minWords ? "text-green-600" : "text-gray-500"
-                  }`}>
-                    {wordCount} / {selectedPrompt.minWords} kata
-                  </span>
-                  {wordCount >= selectedPrompt.minWords && (
-                    <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
-                  )}
+            {isSubmitting ? (
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-6 py-14 animate-fadeIn">
+                <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 rounded-full border-4 border-orange-100 dark:border-orange-950" />
+                  <div className="absolute inset-0 rounded-full border-4 border-orange-600 border-t-transparent animate-spin animate-duration-1000" />
+                  <div className="absolute inset-2 bg-orange-50 dark:bg-orange-500/10 rounded-full flex items-center justify-center animate-pulse">
+                    <span className="material-symbols-outlined text-3xl text-orange-600 dark:text-orange-400 animate-pulse">smart_toy</span>
+                  </div>
+                </div>
+                <div className="text-center space-y-2">
+                  <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">AI Sedang Mengevaluasi Esai Anda</h3>
+                  <p className="font-inter text-xs text-gray-450 dark:text-gray-500 max-w-xs mx-auto leading-relaxed">
+                    Sistem sedang memindai tata bahasa, kosa kata, kesesuaian konten, dan struktur koherensi secara real-time. Proses ini memerlukan beberapa saat.
+                  </p>
                 </div>
               </div>
-              
-              <textarea
-                value={essay}
-                onChange={(e) => setEssay(e.target.value)}
-                className="w-full min-h-[360px] p-6 rounded-2xl border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
-                placeholder="Mulai ketik esai akademik Anda di sini..."
-              />
-            </div>
+            ) : (
+              <>
+                <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+                    <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white">Workspace Penulisan</h3>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono text-sm font-bold ${
+                        wordCount >= selectedPrompt.minWords ? "text-green-600" : "text-gray-500"
+                      }`}>
+                        {wordCount} / {selectedPrompt.minWords} kata
+                      </span>
+                      {wordCount >= selectedPrompt.minWords && (
+                        <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <textarea
+                    value={essay}
+                    onChange={(e) => setEssay(e.target.value)}
+                    className="w-full min-h-[360px] p-6 rounded-2xl border-2 border-gray-250 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
+                    placeholder="Mulai ketik esai akademik Anda di sini..."
+                  />
+                </div>
 
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => void handleSubmit()}
-                disabled={isSubmitting || wordCount < selectedPrompt.minWords}
-                className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Menilai dengan AI...
-                  </>
-                ) : (
-                  <>
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => void handleSubmit()}
+                    disabled={isSubmitting || wordCount < selectedPrompt.minWords}
+                    className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer border-0"
+                  >
                     <span className="material-symbols-outlined">send</span>
                     Kirim & Nilai
-                  </>
-                )}
-              </button>
-            </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -320,14 +468,27 @@ export default function WritingPage() {
                 </div>
               </div>
 
-              <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 text-left space-y-4">
-                <h3 className="font-hanken text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              {result.scores && (
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Grammar", val: result.scores.grammar, color: "text-purple-600 dark:text-purple-400" },
+                    { label: "Clarity/Content", val: result.scores.clarity, color: "text-green-600 dark:text-green-400" },
+                    { label: "Structure", val: result.scores.structure, color: "text-orange-600 dark:text-orange-400" }
+                  ].map((s) => (
+                    <div key={s.label} className="bg-gray-50 dark:bg-gray-900/65 p-4 rounded-xl border border-gray-150 dark:border-gray-800 text-center space-y-1">
+                      <p className="font-inter text-[10px] text-gray-450 dark:text-gray-500 uppercase font-bold tracking-wider">{s.label}</p>
+                      <p className={`font-mono text-xl font-black ${s.color}`}>{Math.round(s.val)}%</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <h3 className="font-hanken text-base font-bold text-gray-950 dark:text-white flex items-center gap-2">
                   <span className="material-symbols-outlined text-orange-600">feedback</span>
                   Umpan Balik AI (Indonesia)
                 </h3>
-                <div className="font-inter text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750">
-                  {result.feedback}
-                </div>
+                {renderFeedback(result.feedback)}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 pt-2">
