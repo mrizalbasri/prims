@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import TestNavigator from "@/components/student/TestNavigator";
+import SpeakingTestRecorder from "@/components/student/SpeakingTestRecorder";
 
 type Question = {
   id: string;
@@ -46,134 +48,10 @@ export default function StudentTestPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognition, setRecognition] = useState<any>(null);
-
   const [audioUrlState, setAudioUrlState] = useState<string | null>(null);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
 
   const currentSection = sections[sectionIndex];
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const rec = new SpeechRecognition();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-US";
-        
-        rec.onresult = (event: any) => {
-          let finalTranscript = "";
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript + " ";
-            }
-          }
-          if (finalTranscript) {
-            setSpeakingResponse(prev => prev + finalTranscript);
-          }
-        };
-
-        rec.onerror = (event: any) => {
-          console.error("Speech recognition error:", event.error);
-          setIsRecording(false);
-          if (event.error === 'not-allowed') {
-            alert("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
-          } else if (event.error === 'no-speech') {
-            alert("Tidak ada suara yang terdeteksi. Silakan coba berbicara lebih dekat ke mikrofon atau berbicara lebih keras.");
-          } else if (event.error === 'audio-capture') {
-            alert("Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon Anda terhubung dengan benar dan aktif.");
-          } else {
-            alert(`Gagal merekam suara: ${event.error}. Silakan coba lagi atau ketik jawaban langsung sebagai alternatif.`);
-          }
-        };
-
-        rec.onend = () => {
-          setIsRecording(false);
-        };
-
-        setRecognition(rec);
-      }
-    }
-  }, []);
-
-  async function toggleSpeechRecording() {
-    if (isRecording) {
-      if (recognition) {
-        try {
-          recognition.stop();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-      }
-      setIsRecording(false);
-    } else {
-      setSpeakingResponse("");
-      setAudioUrlState(null);
-
-      if (recognition) {
-        try {
-          recognition.start();
-        } catch (err) {
-          console.error("Failed to start speech recognition:", err);
-        }
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-          setIsUploadingAudio(true);
-          try {
-            const formData = new FormData();
-            formData.append("file", audioBlob, "recording.webm");
-            
-            const uploadRes = await fetch("/api/upload", {
-              method: "POST",
-              body: formData,
-            });
-            
-            if (uploadRes.ok) {
-              const uploadData = await uploadRes.json();
-              setAudioUrlState(uploadData.url);
-            } else {
-              console.error("Failed to upload audio file");
-            }
-          } catch (uploadErr) {
-            console.error("Error uploading audio file:", uploadErr);
-          } finally {
-            setIsUploadingAudio(false);
-          }
-        };
-
-        mediaRecorder.start();
-        setIsRecording(true);
-      } catch (err) {
-        console.error("Failed to start MediaRecorder:", err);
-        if (!recognition) {
-          alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
-        }
-      }
-    }
-  }
 
   useEffect(() => {
     async function bootstrap(): Promise<void> {
@@ -490,74 +368,15 @@ export default function StudentTestPage() {
 
                 {/* Speaking Audio Recorder */}
                 {currentSection.section === "speaking" && (
-                  <div className="pl-0 md:pl-12 space-y-6">
-                    <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-250 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
-                      <div className="relative">
-                        {isRecording && (
-                          <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150"></div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={toggleSpeechRecording}
-                          disabled={isUploadingAudio}
-                          className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 cursor-pointer ${
-                            isRecording 
-                              ? "bg-red-600 text-white" 
-                              : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isRecording ? "'FILL' 1" : undefined }}>
-                            {isRecording ? "stop" : "mic"}
-                          </span>
-                        </button>
-                      </div>
-                      <p className="font-hanken font-bold text-gray-800 dark:text-white">
-                        {isRecording ? "Sedang Merekam... Bicaralah Sekarang" : isUploadingAudio ? "Mengunggah rekaman..." : "Klik untuk Rekam Suara"}
-                      </p>
-                      
-                      {isUploadingAudio && (
-                        <p className="text-xs text-blue-500 font-semibold animate-pulse">
-                          Menyimpan file audio Anda ke server...
-                        </p>
-                      )}
-
-                      {audioUrlState && !isRecording && (
-                        <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
-                          Rekaman suara berhasil disimpan ke server!
-                        </p>
-                      )}
-
-                      <p className="font-inter text-xs text-gray-400 dark:text-gray-550 text-center max-w-xs leading-relaxed">
-                        Gunakan mikrofon yang berfungsi dengan baik. Ucapkan kalimat di atas dengan lantang dan jelas dalam bahasa Inggris.
-                      </p>
-                      
-                      {(speakingResponse || audioUrlState) && !isRecording && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSpeakingResponse("");
-                            setAudioUrlState(null);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/35 dark:text-red-400 dark:hover:bg-red-900/20 text-xs font-bold transition-all cursor-pointer bg-white dark:bg-gray-800"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                          Ulangi Rekaman (Reset)
-                        </button>
-                      )}
-                      
-                      <div className="w-full space-y-1.5 pt-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
-                          Transkrip Rekaman Suara (Opsional jika merekam suara)
-                        </span>
-                        <textarea
-                          value={speakingResponse}
-                          readOnly
-                          className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-750 bg-gray-50/50 dark:bg-gray-900/40 font-inter text-xs text-gray-550 dark:text-gray-400 resize-none h-24 focus:outline-none leading-relaxed cursor-not-allowed"
-                          placeholder="Hasil rekaman suara Anda akan terketik di sini secara otomatis saat Anda berbicara..."
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <SpeakingTestRecorder
+                    initialText={speakingResponse}
+                    initialAudioUrl={audioUrlState}
+                    onChange={(text, url) => {
+                      setSpeakingResponse(text);
+                      setAudioUrlState(url);
+                    }}
+                    onUploadingChange={setIsUploadingAudio}
+                  />
                 )}
               </div>
             ))}
@@ -566,70 +385,11 @@ export default function StudentTestPage() {
 
         {/* Right Panel: Navigator Map Sidebar */}
         <div className="lg:col-span-4 lg:sticky lg:top-28">
-          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 shadow-sm space-y-6">
-            <h3 className="font-hanken text-lg font-bold text-gray-950 dark:text-white flex items-center gap-2">
-              <span className="material-symbols-outlined text-gray-400">map</span>
-              Navigator Struktur Ujian
-            </h3>
-            
-            <div className="space-y-6">
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Sub-Seksi Tes</p>
-                <div className="space-y-2.5">
-                  {sections.map((sec, idx) => {
-                    const isCurrent = idx === sectionIndex;
-                    const isCompleted = idx < sectionIndex;
-                    return (
-                      <div 
-                        key={sec.section}
-                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
-                          isCurrent 
-                            ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
-                            : isCompleted 
-                            ? "border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 opacity-60" 
-                            : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-850"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined text-lg ${
-                            isCurrent ? "text-teal-600 dark:text-teal-400" :
-                            isCompleted ? "text-teal-600 dark:text-teal-400" :
-                            "text-gray-300 dark:text-gray-600"
-                          }`} style={{ fontVariationSettings: isCompleted ? "'FILL' 1" : "" }}>
-                            {isCompleted ? "check_circle" : "radio_button_unchecked"}
-                          </span>
-                          <span className={`font-inter text-xs font-bold ${
-                            isCurrent ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
-                          }`}>
-                            {sectionLabels[sec.section].split(' ')[0]} {/* display first word */}
-                          </span>
-                        </div>
-                        <span className="font-mono text-[9px] font-bold px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-400 dark:text-gray-500">
-                          {sec.durationMinutes}m
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Navigator Legend */}
-              <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
-                  <span className="font-inter text-xs text-gray-550 dark:text-gray-400 font-medium">Seksi Berjalan</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"></div>
-                  <span className="font-inter text-xs text-gray-550 dark:text-gray-400 font-medium">Seksi Mendatang</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-teal-500/20"></div>
-                  <span className="font-inter text-xs text-gray-550 dark:text-gray-400 font-medium">Seksi Selesai</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <TestNavigator
+            sections={sections}
+            sectionIndex={sectionIndex}
+            sectionLabels={sectionLabels}
+          />
         </div>
       </main>
     </div>
