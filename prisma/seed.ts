@@ -67,14 +67,46 @@ async function main() {
   // Seed Writing Prompts
   console.log('✍️  Seeding writing prompts...');
   for (const prompt of writingPrompts) {
-    
+    await prisma.writingPrompt.create({
+      data: {
+        title: prompt.promptText.includes('online learning') ? 'Online vs Traditional Learning' : 'Academic Goals',
+        type: 'PARAGRAPH',
+        level: 'INTERMEDIATE',
+        promptText: prompt.promptText,
+        wordCountMin: 100,
+        wordCountMax: 150,
+        rubric: prompt.rubric,
+      }
+    });
   }
   console.log(`✅ Created ${writingPrompts.length} writing prompts`);
 
   // Seed Speaking Prompts
   console.log('🎤 Seeding speaking prompts...');
   for (const prompt of speakingPrompts) {
-    
+    let title = 'Speaking Practice';
+    let type: 'INTRODUCTION' | 'DISCUSSION' | 'PRESENTATION' = 'DISCUSSION';
+    if (prompt.promptText.includes('Introduce yourself')) {
+      title = 'Self Introduction';
+      type = 'INTRODUCTION';
+    } else if (prompt.promptText.includes('challenge you faced')) {
+      title = 'Describe a Challenge';
+      type = 'DISCUSSION';
+    } else if (prompt.promptText.includes('Technology has made')) {
+      title = 'Technology in Education';
+      type = 'PRESENTATION';
+    }
+    await prisma.speakingScenario.create({
+      data: {
+        title,
+        description: 'Practice your speaking skills with AI feedback',
+        type,
+        level: 'INTERMEDIATE',
+        promptText: prompt.promptText,
+        rubric: prompt.rubric,
+        prompts: []
+      }
+    });
   }
   console.log(`✅ Created ${speakingPrompts.length} speaking prompts`);
 

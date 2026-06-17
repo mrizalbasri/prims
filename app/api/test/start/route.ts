@@ -193,10 +193,45 @@ export async function POST(request: NextRequest) {
         };
       } else {
         // WRITING or SPEAKING
-        const prompt = getRandomPrompt(sectionAttempt.sectionType);
+        let promptText = 'Respond to the prompt.';
+        let rubricJson: any = null;
+
+        if (sectionAttempt.sectionType === SectionType.WRITING) {
+          const dbPrompts = await prisma.writingPrompt.findMany({
+            where: { isActive: true },
+          });
+          if (dbPrompts.length > 0) {
+            const selectedPrompt = dbPrompts[Math.floor(Math.random() * dbPrompts.length)];
+            promptText = selectedPrompt.promptText;
+            rubricJson = selectedPrompt.rubric;
+          } else {
+            const prompt = getRandomPrompt(sectionAttempt.sectionType);
+            promptText = prompt?.promptText ?? 'Respond to the prompt.';
+            rubricJson = prompt?.rubric ?? null;
+          }
+        } else {
+          // SPEAKING
+          const dbScenarios = await prisma.speakingScenario.findMany({
+            where: { isActive: true },
+          });
+          if (dbScenarios.length > 0) {
+            const selectedScenario = dbScenarios[Math.floor(Math.random() * dbScenarios.length)];
+            let speakingPrompt = selectedScenario.promptText;
+            if (!speakingPrompt && selectedScenario.prompts && selectedScenario.prompts.length > 0) {
+              speakingPrompt = selectedScenario.prompts.join('\n');
+            }
+            promptText = speakingPrompt || 'Respond to the prompt.';
+            rubricJson = selectedScenario.rubric;
+          } else {
+            const prompt = getRandomPrompt(sectionAttempt.sectionType);
+            promptText = prompt?.promptText ?? 'Respond to the prompt.';
+            rubricJson = prompt?.rubric ?? null;
+          }
+        }
+
         feedbackJson = {
-          prompt: prompt?.promptText ?? 'Respond to the prompt.',
-          rubric: prompt?.rubric ?? null,
+          prompt: promptText,
+          rubric: rubricJson,
         };
       }
 

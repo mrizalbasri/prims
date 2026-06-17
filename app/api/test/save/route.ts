@@ -9,6 +9,7 @@ interface SaveAnswerRequest {
   answers?: Record<string, string>;
   writingResponse?: string;
   speakingResponse?: string;
+  speakingAudioUrl?: string;
   currentSection: "vocabulary" | "grammar" | "reading" | "writing" | "speaking";
 }
 
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: SaveAnswerRequest = await request.json();
-    const { answers, writingResponse, speakingResponse, currentSection } = body;
+    const { answers, writingResponse, speakingResponse, speakingAudioUrl, currentSection } = body;
 
     if (!currentSection) {
       return NextResponse.json({ error: 'currentSection is required' }, { status: 400 });
@@ -128,16 +129,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Save speaking response
-    if (sectionType === SectionType.SPEAKING && typeof speakingResponse === 'string') {
+    if (sectionType === SectionType.SPEAKING) {
       await prisma.speakingResponse.upsert({
         where: { sectionAttemptId: sectionAttempt.id },
         create: {
           sectionAttemptId: sectionAttempt.id,
           userId: user.id,
-          transcript: speakingResponse,
+          transcript: speakingResponse || "(Audio recording submitted)",
+          audioUrl: speakingAudioUrl || null,
         },
         update: {
-          transcript: speakingResponse,
+          transcript: speakingResponse || "(Audio recording submitted)",
+          audioUrl: speakingAudioUrl || null,
         },
       });
     }

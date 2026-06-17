@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { scenarioId, transcriptText, audioUrl, durationSec } = body;
 
-    if (!scenarioId || !transcriptText) {
+    if (!scenarioId || (!transcriptText && !audioUrl)) {
       return NextResponse.json(
-        { error: 'scenarioId and transcriptText are required' },
+        { error: 'scenarioId and transcriptText or audioUrl are required' },
         { status: 400 }
       );
     }
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: user.id,
         scenarioId,
-        transcriptText,
+        transcriptText: transcriptText || "(Audio recording submitted)",
         audioUrl,
         durationSec: durationSec || 0,
         status: ResponseStatus.PENDING,
@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
       transcriptText,
       scenario.title,
       scenario.description,
-      scenario.rubric
+      scenario.rubric,
+      audioUrl
     ).catch((error) => {
       console.error('Speaking scoring error:', error);
     });
@@ -120,7 +121,8 @@ async function processSpeakingScoring(
   transcriptText: string,
   scenarioTitle: string,
   scenarioDescription: string,
-  rubric: unknown
+  rubric: unknown,
+  audioUrl?: string
 ): Promise<void> {
   try {
     // Update status to processing
@@ -132,18 +134,21 @@ async function processSpeakingScoring(
     const promptText = `${scenarioTitle}\n${scenarioDescription}`;
 
     // Score with AI
-    const { score, feedback } = await scoreSpeakingWithAI(transcriptText, promptText, rubric);
+    const { score, feedback } = await scoreSpeakingWithAI(transcriptText, promptText, rubric, audioUrl);
 
     // Extract dimension scores from feedback if available
     const fluencyScore = typeof feedback?.fluencyScore === 'number' ? feedback.fluencyScore : (feedback?.fluency ? 75 : score * 0.9);
     const pronunciationScore = typeof feedback?.pronunciationScore === 'number' ? feedback.pronunciationScore : (feedback?.pronunciation ? 70 : score * 0.85);
     const grammarScore = typeof feedback?.grammarScore === 'number' ? feedback.grammarScore : (feedback?.grammar ? 80 : score * 0.95);
 
-    // Update session with scores
+    // Update session with scores and AI transcription if client side transcript was empty/placeholder
+    const finalTranscriptText = feedback?.transcript || (transcriptText === "(Audio recording submitted)" ? "Transcription completed by AI." : transcriptText);
+
     await prisma.speakingSession.update({
       where: { id: sessionId },
       data: {
         aiFeedbackJson: feedback,
+        transcriptText: finalTranscriptText,
         fluencyScore,
         pronunciationScore,
         grammarScore,

@@ -214,8 +214,11 @@ async function processAIScoring(testAttemptId: string): Promise<void> {
           const { score, feedback } = await scoreSpeakingWithAI(
             section.speakingResponse.transcript,
             promptText,
-            rubric
+            rubric,
+            section.speakingResponse.audioUrl || undefined
           );
+
+          const finalTranscriptText = feedback?.transcript || (section.speakingResponse.transcript === "(Audio recording submitted)" ? "Transcription completed by AI." : section.speakingResponse.transcript);
 
           // Update section attempt score & speaking response feedback
           await prisma.$transaction([
@@ -230,6 +233,7 @@ async function processAIScoring(testAttemptId: string): Promise<void> {
               where: { id: section.speakingResponse.id },
               data: {
                 feedback: feedback as any,
+                transcript: finalTranscriptText,
               },
             }),
           ]);

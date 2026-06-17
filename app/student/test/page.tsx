@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -22,6 +22,7 @@ type StatePayload = {
     answers: Record<string, string>;
     writingResponse?: string;
     speakingResponse?: string;
+    speakingAudioUrl?: string;
   } | null;
   sections: Section[];
 };
@@ -47,6 +48,11 @@ export default function StudentTestPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
+
+  const [audioUrlState, setAudioUrlState] = useState<string | null>(null);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const currentSection = sections[sectionIndex];
 
@@ -94,20 +100,77 @@ export default function StudentTestPage() {
     }
   }, []);
 
-  function toggleSpeechRecording() {
-    if (!recognition) {
-      alert("Browser Anda tidak mendukung perekaman suara otomatis (Speech-to-Text). Silakan ketik langsung tanggapan Anda.");
-      return;
-    }
+  async function toggleSpeechRecording() {
     if (isRecording) {
-      recognition.stop();
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      }
       setIsRecording(false);
     } else {
+      setSpeakingResponse("");
+      setAudioUrlState(null);
+
+      if (recognition) {
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error("Failed to start speech recognition:", err);
+        }
+      }
+
       try {
-        recognition.start();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          setIsUploadingAudio(true);
+          try {
+            const formData = new FormData();
+            formData.append("file", audioBlob, "recording.webm");
+            
+            const uploadRes = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
+            
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              setAudioUrlState(uploadData.url);
+            } else {
+              console.error("Failed to upload audio file");
+            }
+          } catch (uploadErr) {
+            console.error("Error uploading audio file:", uploadErr);
+          } finally {
+            setIsUploadingAudio(false);
+          }
+        };
+
+        mediaRecorder.start();
         setIsRecording(true);
       } catch (err) {
-        console.error("Failed to start speech recognition:", err);
+        console.error("Failed to start MediaRecorder:", err);
+        if (!recognition) {
+          alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
+        }
       }
     }
   }
@@ -136,6 +199,7 @@ export default function StudentTestPage() {
         setAnswers(data.attempt?.answers ?? {});
         setWritingResponse(data.attempt?.writingResponse ?? "");
         setSpeakingResponse(data.attempt?.speakingResponse ?? "");
+        setAudioUrlState(data.attempt?.speakingAudioUrl ?? null);
         setSectionIndex(activeIdx);
         setTimeLeft((data.sections[activeIdx]?.durationMinutes ?? 0) * 60);
       } catch (err) {
@@ -167,7 +231,7 @@ export default function StudentTestPage() {
     }
 
     if (currentSection.section === "speaking") {
-      return speakingResponse.trim().length > 0;
+      return speakingResponse.trim().length > 0 || !!audioUrlState;
     }
 
     // Multiple choice sections
@@ -188,6 +252,7 @@ export default function StudentTestPage() {
             answers,
             writingResponse,
             speakingResponse,
+            speakingAudioUrl: audioUrlState,
             currentSection: sectionOverride ?? currentSection?.section,
           }),
         });
@@ -197,7 +262,7 @@ export default function StudentTestPage() {
         setIsSaving(false);
       }
     },
-    [answers, writingResponse, speakingResponse, currentSection?.section],
+    [answers, writingResponse, speakingResponse, audioUrlState, currentSection?.section],
   );
 
   const moveNext = useCallback(
@@ -314,7 +379,7 @@ export default function StudentTestPage() {
             </div>
             
             <button 
-              disabled={!isSectionComplete}
+              disabled={!isSectionComplete || isUploadingAudio}
               onClick={() => void moveNext(false)}
               className="bg-teal-600 hover:bg-teal-700 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               title={!isSectionComplete ? "Jawab semua pertanyaan untuk lanjut" : undefined}
@@ -434,6 +499,7 @@ export default function StudentTestPage() {
                         <button
                           type="button"
                           onClick={toggleSpeechRecording}
+                          disabled={isUploadingAudio}
                           className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 cursor-pointer ${
                             isRecording 
                               ? "bg-red-600 text-white" 
@@ -446,16 +512,32 @@ export default function StudentTestPage() {
                         </button>
                       </div>
                       <p className="font-hanken font-bold text-gray-800 dark:text-white">
-                        {isRecording ? "Sedang Merekam... Bicaralah Sekarang" : "Klik untuk Rekam Suara"}
+                        {isRecording ? "Sedang Merekam... Bicaralah Sekarang" : isUploadingAudio ? "Mengunggah rekaman..." : "Klik untuk Rekam Suara"}
                       </p>
-                      <p className="font-inter text-xs text-gray-400 dark:text-gray-500 text-center max-w-xs leading-relaxed">
+                      
+                      {isUploadingAudio && (
+                        <p className="text-xs text-blue-500 font-semibold animate-pulse">
+                          Menyimpan file audio Anda ke server...
+                        </p>
+                      )}
+
+                      {audioUrlState && !isRecording && (
+                        <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                          Rekaman suara berhasil disimpan ke server!
+                        </p>
+                      )}
+
+                      <p className="font-inter text-xs text-gray-400 dark:text-gray-550 text-center max-w-xs leading-relaxed">
                         Gunakan mikrofon yang berfungsi dengan baik. Ucapkan kalimat di atas dengan lantang dan jelas dalam bahasa Inggris.
                       </p>
                       
-                      {speakingResponse && !isRecording && (
+                      {(speakingResponse || audioUrlState) && !isRecording && (
                         <button
                           type="button"
-                          onClick={() => setSpeakingResponse("")}
+                          onClick={() => {
+                            setSpeakingResponse("");
+                            setAudioUrlState(null);
+                          }}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/35 dark:text-red-400 dark:hover:bg-red-900/20 text-xs font-bold transition-all cursor-pointer bg-white dark:bg-gray-800"
                         >
                           <span className="material-symbols-outlined text-sm">delete</span>
@@ -465,12 +547,12 @@ export default function StudentTestPage() {
                       
                       <div className="w-full space-y-1.5 pt-2">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
-                          Transkrip Rekaman Suara (Terisi Otomatis)
+                          Transkrip Rekaman Suara (Opsional jika merekam suara)
                         </span>
                         <textarea
                           value={speakingResponse}
                           readOnly
-                          className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-750 bg-gray-50/50 dark:bg-gray-900/40 font-inter text-xs text-gray-500 dark:text-gray-400 resize-none h-24 focus:outline-none leading-relaxed cursor-not-allowed"
+                          className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-750 bg-gray-50/50 dark:bg-gray-900/40 font-inter text-xs text-gray-550 dark:text-gray-400 resize-none h-24 focus:outline-none leading-relaxed cursor-not-allowed"
                           placeholder="Hasil rekaman suara Anda akan terketik di sini secara otomatis saat Anda berbicara..."
                         />
                       </div>

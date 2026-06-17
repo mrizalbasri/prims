@@ -62,6 +62,11 @@ export default function SpeakingPage() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [recognition, setRecognition] = useState<SpeechRecognitionInstance | null>(null);
 
+  const [audioUrlState, setAudioUrlState] = useState<string | null>(null);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -169,7 +174,7 @@ export default function SpeakingPage() {
   }, [isRecording]);
 
   async function handleSubmit() {
-    if (!selectedScenario || !transcript.trim()) return;
+    if (!selectedScenario || (!transcript.trim() && !audioUrlState)) return;
 
     setIsSubmitting(true);
     try {
@@ -178,7 +183,9 @@ export default function SpeakingPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           scenarioId: selectedScenario.id,
-          transcript
+          transcriptText: transcript,
+          audioUrl: audioUrlState,
+          durationSec: recordingTime
         })
       });
 
@@ -320,6 +327,8 @@ export default function SpeakingPage() {
   function resetAndGoBack() {
     setSelectedScenario(null);
     setTranscript("");
+    setAudioUrlState(null);
+    setIsUploadingAudio(false);
     setShowResult(false);
     setResult(null);
     setIsRecording(false);
@@ -327,20 +336,77 @@ export default function SpeakingPage() {
     setView("scenarios");
   }
 
-  function toggleRecording() {
-    if (!recognition) {
-      alert("Browser Anda tidak mendukung perekaman suara otomatis (Speech-to-Text). Silakan ketik langsung transkrip Anda.");
-      return;
-    }
+  async function toggleRecording() {
     if (isRecording) {
-      recognition.stop();
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      }
       setIsRecording(false);
     } else {
+      setTranscript("");
+      setAudioUrlState(null);
+
+      if (recognition) {
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error("Failed to start speech recognition:", err);
+        }
+      }
+
       try {
-        recognition.start();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          setIsUploadingAudio(true);
+          try {
+            const formData = new FormData();
+            formData.append("file", audioBlob, "recording.webm");
+            
+            const uploadRes = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
+            
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              setAudioUrlState(uploadData.url);
+            } else {
+              console.error("Failed to upload audio file");
+            }
+          } catch (uploadErr) {
+            console.error("Error uploading audio file:", uploadErr);
+          } finally {
+            setIsUploadingAudio(false);
+          }
+        };
+
+        mediaRecorder.start();
         setIsRecording(true);
       } catch (err) {
-        console.error("Failed to start speech recognition:", err);
+        console.error("Failed to start MediaRecorder:", err);
+        if (!recognition) {
+          alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
+        }
       }
     }
   }
@@ -545,9 +611,21 @@ export default function SpeakingPage() {
                         {formatTime(recordingTime)}
                       </p>
                     ) : (
-                      <p className="font-inter text-sm text-gray-400 dark:text-gray-555 max-w-sm mx-auto leading-relaxed">
-                        Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
-                      </p>
+                      <div className="space-y-2 text-center">
+                        <p className="font-inter text-sm text-gray-400 dark:text-gray-555 max-w-sm mx-auto leading-relaxed">
+                          Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
+                        </p>
+                        {isUploadingAudio && (
+                          <p className="text-xs text-blue-500 font-semibold animate-pulse">
+                            Menyimpan rekaman suara Anda ke server...
+                          </p>
+                        )}
+                        {audioUrlState && !isRecording && (
+                          <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                            Rekaman suara disimpan! Silakan periksa transkrip (opsional) lalu kirim.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                   
@@ -570,11 +648,11 @@ export default function SpeakingPage() {
                 <div className="flex justify-end pt-2">
                   <button
                     onClick={() => void handleSubmit()}
-                    disabled={isSubmitting || !transcript.trim()}
+                    disabled={isSubmitting || isUploadingAudio || (!transcript.trim() && !audioUrlState)}
                     className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer border-0"
                   >
                     <span className="material-symbols-outlined">send</span>
-                    Kirim Jawaban Speaking
+                    {isUploadingAudio ? "Mengunggah rekaman..." : "Kirim Jawaban Speaking"}
                   </button>
                 </div>
               </>

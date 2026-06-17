@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
+import { RadarChart } from "@/components/student/RadarChart";
+import { WelcomeOverlay } from "@/components/student/WelcomeOverlay";
+import { TokenForm } from "@/components/student/TokenForm";
+import { StudyModules } from "@/components/student/StudyModules";
+import { StatsSection } from "@/components/student/StatsSection";
 
 type User = {
   id: string;
@@ -122,34 +127,6 @@ export default function StudentDashboardPage() {
     }
   }
 
-  // Helper function to calculate SVG Radar Chart points dynamically
-  function getRadarPoints(scores: Result["scores"]) {
-    const vRadius = 40 * (scores.vocabulary / 100);
-    const gRadius = 40 * (scores.grammar / 100);
-    const rRadius = 40 * (scores.reading / 100);
-    const wRadius = 40 * (scores.writing / 100);
-    const sRadius = 40 * (scores.speaking / 100);
-
-    // Center of SVG is at (50, 50)
-    // Angles: Vocab = 0deg (up), Grammar = 72deg, Reading = 144deg, Writing = 216deg, Speaking = 288deg
-    const x0 = 50;
-    const y0 = 50 - vRadius;
-
-    const x1 = 50 + gRadius * Math.cos(18 * Math.PI / 180);
-    const y1 = 50 - gRadius * Math.sin(18 * Math.PI / 180);
-
-    const x2 = 50 + rRadius * Math.cos(54 * Math.PI / 180);
-    const y2 = 50 + rRadius * Math.sin(54 * Math.PI / 180);
-
-    const x3 = 50 - wRadius * Math.cos(54 * Math.PI / 180);
-    const y3 = 50 + wRadius * Math.sin(54 * Math.PI / 180);
-
-    const x4 = 50 - sRadius * Math.cos(18 * Math.PI / 180);
-    const y4 = 50 - sRadius * Math.sin(18 * Math.PI / 180);
-
-    return `${x0},${y0} ${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`;
-  }
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
@@ -170,36 +147,6 @@ export default function StudentDashboardPage() {
   const levelBg = result?.level === "ADVANCED" ? "bg-green-50 dark:bg-green-500/10 border-green-200/50" : 
                   result?.level === "INTERMEDIATE" ? "bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200/50" : 
                   "bg-red-50 dark:bg-red-500/10 border-red-200/50";
-
-  const learningModules = [
-    {
-      title: "Vocabulary Learning",
-      description: "Pelajari kosakata akademik baru dengan sistem flashcard dan spaced repetition.",
-      icon: "style",
-      color: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-50 dark:bg-blue-500/10",
-      border: "hover:border-blue-500/40",
-      href: "/student/vocabulary"
-    },
-    {
-      title: "Writing Practice",
-      description: "Latih kemampuan menulis esai akademik dengan umpan balik dan penilaian dari AI.",
-      icon: "edit_document",
-      color: "text-orange-600 dark:text-orange-400",
-      bg: "bg-orange-50 dark:bg-orange-500/10",
-      border: "hover:border-orange-500/40",
-      href: "/student/writing"
-    },
-    {
-      title: "Speaking Practice",
-      description: "Praktikkan kelancaran berbicara lisan dengan simulasi skenario real-world dan penilaian AI.",
-      icon: "record_voice_over",
-      color: "text-red-600 dark:text-red-400",
-      bg: "bg-red-50 dark:bg-red-500/10",
-      border: "hover:border-red-500/40",
-      href: "/student/speaking"
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
@@ -240,63 +187,18 @@ export default function StudentDashboardPage() {
             Lanjutkan perjalanan akademik dan peningkatan kompetensi bahasa Inggris Anda hari ini.
           </p>
         </div>
-
         {/* 1. KONDISI BELUM TES: Tampilkan Banner Placement Test Saja */}
         {!result && showWelcome && (
-          <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 md:p-12 text-white shadow-2xl">
-            {/* Background decoration */}
-            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24" />
-            
-            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center gap-8">
-              <div className="flex-1 space-y-4">
-                <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-white/20">
-                  <span className="material-symbols-outlined text-sm">school</span>
-                  PRISM Placement Test
-                </div>
-                <h2 className="font-hanken text-3xl md:text-4xl font-black leading-tight">
-                  Selesaikan Placement Test Anda 🚀
-                </h2>
-                <p className="font-inter text-sm text-blue-100 leading-relaxed max-w-lg">
-                  Sebelum mengakses modul belajar mandiri, Anda perlu menyelesaikan <strong>Adaptive Placement Test</strong> terlebih dahulu untuk mengukur kemampuan bahasa Inggris akademik Anda.
-                </p>
-                <button
-                  onClick={() => router.push('/student/test')}
-                  className="inline-flex items-center gap-3 bg-white text-blue-700 font-hanken font-black px-8 py-4 rounded-2xl hover:bg-blue-50 hover:shadow-xl transition-all group text-base cursor-pointer border-0"
-                >
-                  <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
-                  Mulai Placement Test
-                  <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                </button>
-              </div>
-
-              {/* Stats panel */}
-              <div className="flex-shrink-0 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6 grid grid-cols-2 gap-4 min-w-[220px]">
-                {[
-                  { label: 'Sections', value: '5', icon: 'layers' },
-                  { label: 'Duration', value: '~45 min', icon: 'schedule' },
-                  { label: 'Questions', value: '50+', icon: 'quiz' },
-                  { label: 'Result', value: 'Instant', icon: 'bolt' },
-                ].map((s) => (
-                  <div key={s.label} className="text-center">
-                    <span className="material-symbols-outlined text-blue-200 text-2xl">{s.icon}</span>
-                    <p className="font-hanken text-xl font-black text-white">{s.value}</p>
-                    <p className="font-inter text-[10px] text-blue-200 uppercase tracking-wider">{s.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <WelcomeOverlay onStartTest={() => router.push('/student/test')} />
         )}
 
         {/* 2. KONDISI SUDAH TES: Tampilkan Hasil Ujian */}
         {result && (
-          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-md p-6 md:p-8 flex flex-col lg:flex-row gap-8 items-center">
+          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-md p-6 md:p-8 flex flex-col lg:flex-row gap-8 items-center animate-fadeIn">
             {/* Left Result Details */}
             <div className="flex-1 space-y-6 w-full">
               <div className="space-y-1">
-                <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-widest">
+                <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-550 tracking-widest">
                   Hasil Ujian Placement Test Anda
                 </span>
                 <div className="flex items-baseline gap-4">
@@ -333,160 +235,32 @@ export default function StudentDashboardPage() {
               </div>
             </div>
 
-            {/* Right Radar Chart SVG */}
-            <div className="w-full lg:w-80 flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-800 flex-shrink-0">
-              <span className="font-hanken text-xs font-bold text-gray-400 dark:text-gray-300 tracking-wider mb-4 uppercase">
-                Skill Breakdown Chart
-              </span>
-              <div className="w-48 h-48 relative">
-                <svg className="w-full h-full text-gray-900 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 100 100">
-                  {/* Outlines */}
-                  <polygon className="text-gray-200 dark:text-gray-700" points="50,10 90,40 75,90 25,90 10,40" strokeWidth="0.5"></polygon>
-                  <polygon className="text-gray-200/50 dark:text-gray-750" points="50,25 80,47.5 68.75,70 31.25,70 20,47.5" strokeWidth="0.5"></polygon>
-                  <polygon className="text-gray-255/20 dark:text-gray-800" points="50,40 70,55 62.5,50 37.5,50 30,55" strokeWidth="0.5"></polygon>
-                  
-                  {/* Axis */}
-                  <line x1="50" y1="50" x2="50" y2="10" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
-                  <line x1="50" y1="50" x2="90" y2="40" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
-                  <line x1="50" y1="50" x2="75" y2="90" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
-                  <line x1="50" y1="50" x2="25" y2="90" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
-                  <line x1="50" y1="50" x2="10" y2="40" className="text-gray-250 dark:text-gray-700" strokeWidth="0.5"></line>
-
-                  {/* Dynamic Points Polygon */}
-                  <polygon 
-                    className="text-blue-600 dark:text-blue-400 fill-blue-600/20 dark:fill-blue-400/20" 
-                    points={getRadarPoints(result.scores)} 
-                    stroke="currentColor" 
-                    strokeWidth="1.5"
-                  ></polygon>
-                  
-                  {/* Axis labels */}
-                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="middle" x="50" y="6">VOC</text>
-                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="start" x="92" y="41">GRA</text>
-                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="middle" x="78" y="96">REA</text>
-                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="middle" x="22" y="96">WRI</text>
-                  <text className="font-label-sm font-bold" fill="currentColor" fontSize="5" textAnchor="end" x="8" y="41">SPE</text>
-                </svg>
-              </div>
-            </div>
+            {/* Right Radar Chart Sub-component */}
+            <RadarChart scores={result.scores} />
           </div>
         )}
 
         {/* 3. KONDISI SUDAH TES TAPI BELUM MEMILIKI AKSES MODUL: Tampilkan Form Input Token */}
         {result && !user?.hasModuleAccess && (
-          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-sm p-6 md:p-8 space-y-4 max-w-xl animate-fadeIn">
-            <h3 className="font-hanken font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2">
-              <span className="material-symbols-outlined text-amber-500">lock</span>
-              Aktifkan Modul Belajar Mandiri
-            </h3>
-            <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-              Anda telah menyelesaikan Placement Test. Untuk mulai mengakses modul latihan mandiri (*Vocabulary, Writing, Speaking*), silakan masukkan **Token Akses** yang diberikan oleh Dosen Anda.
-            </p>
-            <form onSubmit={handleVerifyToken} className="flex flex-col sm:flex-row gap-3 pt-2">
-              <input
-                type="text"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Masukkan Token (e.g. DOSEN-PRISM-2026)"
-                className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-250 dark:border-gray-750 rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-blue-500 placeholder-gray-400 transition-colors uppercase text-gray-900 dark:text-white"
-              />
-              <button
-                type="submit"
-                disabled={isVerifying}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-3 rounded-xl transition-all cursor-pointer border-0 shrink-0"
-              >
-                {isVerifying ? "Memverifikasi..." : "Aktifkan Modul"}
-              </button>
-            </form>
-            {tokenError && (
-              <p className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5 pt-1 animate-fadeIn">
-                <span className="material-symbols-outlined text-sm">error</span>
-                {tokenError}
-              </p>
-            )}
-          </div>
+          <TokenForm
+            tokenInput={tokenInput}
+            setTokenInput={setTokenInput}
+            onSubmit={handleVerifyToken}
+            isVerifying={isVerifying}
+            tokenError={tokenError}
+          />
         )}
 
         {/* 4. KONDISI SUDAH TES DAN MEMILIKI AKSES MODUL: Tampilkan Modul Latihan & Statistik */}
         {result && user?.hasModuleAccess && (
           <>
-            {/* Learning Modules Section */}
-            <div className="space-y-6 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <h2 className="font-hanken text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-blue-600">school</span>
-                  Modul Pembelajaran Mandiri
-                </h2>
-                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200/20">
-                  Level: {levelNameFormatted}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {learningModules.map((module, idx) => {
-                  const cardContent = (
-                    <>
-                      <div>
-                        <div className={`w-14 h-14 rounded-xl ${module.bg} ${module.color} flex items-center justify-center mb-6 transition-transform border border-current/10 group-hover:scale-110`}>
-                          <span className="material-symbols-outlined text-3xl">{module.icon}</span>
-                        </div>
-                        
-                        <h3 className={`font-hanken text-lg font-bold text-gray-900 dark:text-white mb-2 transition-colors group-hover:text-blue-600`}>
-                          {module.title}
-                        </h3>
-                        
-                        <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
-                          {module.description}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-hanken text-sm font-bold">
-                        Mulai Latihan
-                        <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                      </div>
-                    </>
-                  );
-
-                  return (
-                    <Link
-                      key={idx}
-                      href={module.href}
-                      className={`group bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl transition-all flex flex-col justify-between ${module.border}`}
-                    >
-                      {cardContent}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Quick Stats Section */}
-            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 shadow-sm animate-fadeIn">
-              <h3 className="font-hanken text-lg font-bold text-gray-955 dark:text-white mb-6 flex items-center gap-2">
-                <span className="material-symbols-outlined text-gray-400">insights</span>
-                Statistik Perkembangan Belajar
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: "Vocab Dipelajari", score: learningStats.vocabLearned, icon: "style", color: "text-blue-600 bg-blue-50 dark:bg-blue-500/10" },
-                  { label: "Esai Ditulis", score: learningStats.writingCount, icon: "edit_document", color: "text-orange-600 bg-orange-50 dark:bg-orange-500/10" },
-                  { label: "Sesi Speaking", score: learningStats.speakingCount, icon: "record_voice_over", color: "text-red-600 bg-red-50 dark:bg-red-500/10" },
-                  { label: "Streak Belajar", score: learningStats.streak, icon: "local_fire_department", color: "text-green-600 bg-green-50 dark:bg-green-500/10" }
-                ].map((stat, idx) => (
-                  <div key={idx} className="text-center p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <span className={`material-symbols-outlined text-3xl p-2.5 rounded-xl mb-3 inline-block ${stat.color}`}>
-                      {stat.icon}
-                    </span>
-                    <p className="font-mono text-3xl font-black text-gray-900 dark:text-white">
-                      {stat.score}
-                    </p>
-                    <p className="font-inter text-xs text-gray-400 dark:text-gray-550 uppercase font-semibold mt-1">
-                      {stat.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <StudyModules levelNameFormatted={levelNameFormatted} />
+            <StatsSection
+              vocabLearned={learningStats.vocabLearned}
+              writingCount={learningStats.writingCount}
+              speakingCount={learningStats.speakingCount}
+              streak={learningStats.streak}
+            />
           </>
         )}
       </main>

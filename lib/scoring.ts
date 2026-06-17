@@ -180,6 +180,7 @@ async function runGeminiScoringWithFallback(
   scoringPrompt: string,
   preferredModel: string,
   fallbackModel = "gemini-2.5-flash",
+  audioData?: { data: string; mimeType: string },
 ): Promise<{ score: number; feedback: any }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -191,7 +192,14 @@ async function runGeminiScoringWithFallback(
 
   try {
     const primary = genAI.getGenerativeModel({ model: preferredModel });
-    const primaryResult = await primary.generateContent(scoringPrompt);
+    const parts: any[] = [];
+    if (audioData) {
+      parts.push({
+        inlineData: audioData,
+      });
+    }
+    parts.push(scoringPrompt);
+    const primaryResult = await primary.generateContent(parts);
     const primaryText = primaryResult.response.text();
     return parseAiJson(primaryText);
   } catch (primaryError) {
@@ -204,7 +212,14 @@ async function runGeminiScoringWithFallback(
     });
 
     const fallback = genAI.getGenerativeModel({ model: fallbackModel });
-    const fallbackResult = await fallback.generateContent(scoringPrompt);
+    const parts: any[] = [];
+    if (audioData) {
+      parts.push({
+        inlineData: audioData,
+      });
+    }
+    parts.push(scoringPrompt);
+    const fallbackResult = await fallback.generateContent(parts);
     const fallbackText = fallbackResult.response.text();
     const parsed = parseAiJson(fallbackText);
 
@@ -345,9 +360,42 @@ export async function scoreSpeakingWithAI(
   transcriptText: string,
   promptText: string,
   rubric?: any,
+  audioUrl?: string,
 ): Promise<{ score: number; feedback: any }> {
+  let audioData: { data: string; mimeType: string } | undefined = undefined;
+
+  if (audioUrl) {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      
+      const relativePath = audioUrl.startsWith("/") ? audioUrl.substring(1) : audioUrl;
+      const absolutePath = path.join(process.cwd(), "public", relativePath);
+
+      if (fs.existsSync(absolutePath)) {
+        const fileBuffer = fs.readFileSync(absolutePath);
+        const base64Data = fileBuffer.toString("base64");
+        
+        let mimeType = "audio/webm";
+        if (audioUrl.endsWith(".wav")) mimeType = "audio/wav";
+        else if (audioUrl.endsWith(".mp3")) mimeType = "audio/mp3";
+        else if (audioUrl.endsWith(".mpeg")) mimeType = "audio/mpeg";
+        else if (audioUrl.endsWith(".m4a")) mimeType = "audio/m4a";
+        
+        audioData = {
+          data: base64Data,
+          mimeType,
+        };
+      } else {
+        console.warn(`Audio file not found at ${absolutePath}`);
+      }
+    } catch (readError) {
+      console.error("Error reading speaking audio file:", readError);
+    }
+  }
+
   const scoringPrompt = `
-You are an English language speaking assessment expert. Score the following student speaking response based on the transcript.
+You are an English language speaking assessment expert. Score the following student speaking response based on the transcript and/or the audio recording.
 
 PROMPT:
 ${promptText}
@@ -364,7 +412,7 @@ Please evaluate the response and provide:
    - Grammar and sentence structure
    - Vocabulary usage and appropriateness
    - Content relevance and completeness
-   - Fluency and coherence (based on transcript)
+   - Fluency and coherence (based on transcript and/or audio)
    - Specific suggestions for improvement
 
 Return your response in JSON format:
@@ -381,19 +429,20 @@ Return your response in JSON format:
     "suggestions": ["<suggestion 1>", "<suggestion 2>", ...]
   }
 }
-`
+`;
 
   try {
-    // 1. Try Gemini (Native Audio Dialog) first for Speaking
+    // 1. Try Gemini first for Speaking
     if (process.env.GEMINI_API_KEY) {
       try {
         const modelName =
           process.env.GEMINI_SPEAKING_MODEL ||
-          "gemini-2.5-flash-native-audio-dialog";
+          "gemini-2.5-flash";
         return await runGeminiScoringWithFallback(
           scoringPrompt,
           modelName,
           "gemini-2.5-flash",
+          audioData
         );
       } catch (geminiError) {
         console.warn("Speaking assessment: Gemini failed, trying MiniMax as fallback...", geminiError);

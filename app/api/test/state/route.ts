@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
     const answers: Record<string, string> = {};
     let writingResponseText = "";
     let speakingResponseText = "";
+    let speakingAudioUrlText = "";
 
     for (const sa of testAttempt.sectionAttempts) {
       for (const objAns of sa.objectiveAnswers) {
@@ -109,6 +110,7 @@ export async function GET(request: NextRequest) {
       }
       if (sa.sectionType === SectionType.SPEAKING && sa.speakingResponse) {
         speakingResponseText = sa.speakingResponse.transcript || "";
+        speakingAudioUrlText = sa.speakingResponse.audioUrl || "";
       }
     }
 
@@ -130,6 +132,7 @@ export async function GET(request: NextRequest) {
           answers,
           writingResponse: writingResponseText,
           speakingResponse: speakingResponseText,
+          speakingAudioUrl: speakingAudioUrlText,
         },
         sections: sectionsData,
         activeSectionIndex,
