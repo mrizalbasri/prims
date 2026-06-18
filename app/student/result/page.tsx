@@ -9,6 +9,7 @@ import Logo from "@/components/ui/Logo";
 type SectionScores = {
   vocabulary: number;
   grammar: number;
+  listening: number;
   reading: number;
   writing: number;
   speaking: number;
@@ -102,11 +103,90 @@ function getGuidance(level: Result["level"]) {
   };
 }
 
+function getSectionGuidance(sectionKey: string, score: number) {
+  const getLevelLabel = (s: number) => {
+    if (s < 60) return { label: "Beginner", color: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-250/50 dark:border-rose-900/30" };
+    if (s < 80) return { label: "Intermediate", color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-250/50 dark:border-amber-900/30" };
+    return { label: "Advanced", color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-250/50 dark:border-emerald-900/30" };
+  };
+
+  const levelMeta = getLevelLabel(score);
+  
+  let recommendation = "";
+  let actionLink: { label: string; href: string } | null = null;
+
+  switch (sectionKey) {
+    case "vocabulary":
+      if (score < 60) {
+        recommendation = `Skor Vocabulary Anda adalah ${score} (Beginner). Kami menyarankan Anda fokus melatih modul 'Vocabulary Learning' di menu utama untuk memperluas penguasaan kata dasar bahasa Inggris.`;
+      } else if (score < 80) {
+        recommendation = `Skor Vocabulary Anda adalah ${score} (Intermediate). Anda disarankan melatih kosakata akademik tingkat menengah ke atas menggunakan sistem flashcard di modul 'Vocabulary Learning'.`;
+      } else {
+        recommendation = `Skor Vocabulary Anda adalah ${score} (Advanced). Kosakata Anda sudah sangat luas. Terus tingkatkan kemampuan dengan mempelajari kosakata akademik langka dan idiomatik di modul 'Vocabulary Learning'.`;
+      }
+      actionLink = { label: "Latih Vocabulary", href: "/student/vocabulary" };
+      break;
+
+    case "grammar":
+      if (score < 60) {
+        recommendation = `Skor Grammar Anda adalah ${score} (Beginner). Kami menyarankan Anda fokus melatih tata bahasa dasar (seperti tenses dasar, kesesuaian subjek-kata kerja) terlebih dahulu secara mandiri.`;
+      } else if (score < 80) {
+        recommendation = `Skor Grammar Anda adalah ${score} (Intermediate). Pelajari lebih dalam struktur kalimat kompleks, klausa adjektiva, dan pengkondisian (conditional sentences) untuk penulisan akademik.`;
+      } else {
+        recommendation = `Skor Grammar Anda adalah ${score} (Advanced). Penggunaan tata bahasa Anda sangat baik dan akurat. Pertahankan presisi ini dengan melatih variasi gaya struktur kalimat formal.`;
+      }
+      break;
+
+    case "reading":
+      if (score < 60) {
+        recommendation = `Skor Reading Anda adalah ${score} (Beginner). Mulailah membaca artikel bahasa Inggris pendek secara konsisten dan fokus melatih teknik skimming untuk mencari ide pokok paragraf.`;
+      } else if (score < 80) {
+        recommendation = `Skor Reading Anda adalah ${score} (Intermediate). Tingkatkan pemahaman membaca Anda dengan teks opini atau esai akademik yang lebih panjang, lalu fokus pada kohesi dan simpulan tersirat.`;
+      } else {
+        recommendation = `Skor Reading Anda adalah ${score} (Advanced). Pemahaman membaca Anda luar biasa. Latihlah menganalisis teks jurnal ilmiah, artikel penelitian kompleks, dan kritik sastra.`;
+      }
+      break;
+
+    case "writing":
+      if (score < 60) {
+        recommendation = `Skor Writing Anda adalah ${score} (Beginner). Kami menyarankan Anda fokus menulis paragraf sederhana dengan struktur kalimat yang utuh dan jelas di modul 'Writing Practice'.`;
+      } else if (score < 80) {
+        recommendation = `Skor Writing Anda adalah ${score} (Intermediate). Tulis esai terstruktur (intro, body paragraphs, dan conclusion) serta latih transisi antar paragraf di modul 'Writing Practice'.`;
+      } else {
+        recommendation = `Skor Writing Anda adalah ${score} (Advanced). Gaya penulisan Anda sangat baik. Fokus pada peningkatan kohesi leksikal yang lebih kaya dan presisi argumen di modul 'Writing Practice'.`;
+      }
+      actionLink = { label: "Latih Writing", href: "/student/writing" };
+      break;
+
+    case "listening":
+      if (score < 60) {
+        recommendation = `Skor Listening Anda adalah ${score} (Beginner). Tingkatkan pendengaran Anda dengan mendengarkan podcast akademik lambat atau monolog dengan transcript bahasa Inggris.`;
+      } else if (score < 80) {
+        recommendation = `Skor Listening Anda adalah ${score} (Intermediate). Latihlah mendengarkan monolog kuliah akademik dan biasakan menjawab pertanyaan pilihan ganda secara cepat.`;
+      } else {
+        recommendation = `Skor Listening Anda adalah ${score} (Advanced). Pemahaman mendengarkan Anda sangat baik. Latih terus dengan mendengarkan aksen bahasa Inggris yang bervariasi (UK, Australia, US).`;
+      }
+      break;
+
+    case "speaking":
+      if (score < 60) {
+        recommendation = `Skor Speaking Anda adalah ${score} (Beginner). Kami menyarankan Anda untuk berlatih melafalkan kosakata dasar secara lantang dengan bantuan modul 'Speaking Practice'.`;
+      } else if (score < 80) {
+        recommendation = `Skor Speaking Anda adalah ${score} (Intermediate). Latihlah kelancaran berbicara (fluency) tanpa jeda ragu-ragu di modul 'Speaking Practice' dengan skenario interaktif.`;
+      } else {
+        recommendation = `Skor Speaking Anda adalah ${score} (Advanced). Kefasihan berbicara Anda luar biasa. Cobalah mempraktikkan intonasi ekspresif layaknya penutur asli di modul 'Speaking Practice'.`;
+      }
+      actionLink = { label: "Latih Speaking", href: "/student/speaking" };
+      break;
+  }
+
+  return { levelMeta, recommendation, actionLink };
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function StudentResultPage() {
   const router = useRouter();
   const [result, setResult] = useState<Result | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [barsVisible, setBarsVisible] = useState(false);
@@ -133,13 +213,11 @@ export default function StudentResultPage() {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
         }
-        setIsProcessing(false);
         setResult(data.result);
         // Trigger bar animation after short delay
         setTimeout(() => setBarsVisible(true), 100);
       } else {
         // No result yet — show processing state and start polling
-        setIsProcessing(true);
         if (!isPolling && !pollingRef.current) {
           pollingRef.current = setInterval(() => {
             void fetchResult(true);
@@ -287,6 +365,7 @@ export default function StudentResultPage() {
   const sectionBreakdown = [
     {
       label: "Vocabulary",
+      key: "vocabulary",
       score: Math.round(result.scores?.vocabulary ?? 0),
       icon: "style",
       color: "text-blue-600 dark:text-blue-400",
@@ -295,6 +374,7 @@ export default function StudentResultPage() {
     },
     {
       label: "Grammar",
+      key: "grammar",
       score: Math.round(result.scores?.grammar ?? 0),
       icon: "spellcheck",
       color: "text-purple-600 dark:text-purple-400",
@@ -302,7 +382,17 @@ export default function StudentResultPage() {
       bg: "bg-purple-50 dark:bg-purple-500/10",
     },
     {
+      label: "Listening",
+      key: "listening",
+      score: Math.round(result.scores?.listening ?? 0),
+      icon: "headphones",
+      color: "text-teal-600 dark:text-teal-400",
+      bar: "bg-teal-500",
+      bg: "bg-teal-50 dark:bg-teal-500/10",
+    },
+    {
       label: "Reading",
+      key: "reading",
       score: Math.round(result.scores?.reading ?? 0),
       icon: "menu_book",
       color: "text-green-600 dark:text-green-400",
@@ -311,6 +401,7 @@ export default function StudentResultPage() {
     },
     {
       label: "Writing",
+      key: "writing",
       score: Math.round(result.scores?.writing ?? 0),
       icon: "edit_document",
       color: "text-orange-600 dark:text-orange-400",
@@ -319,6 +410,7 @@ export default function StudentResultPage() {
     },
     {
       label: "Speaking",
+      key: "speaking",
       score: Math.round(result.scores?.speaking ?? 0),
       icon: "record_voice_over",
       color: "text-red-600 dark:text-red-400",
@@ -464,7 +556,7 @@ export default function StudentResultPage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {sectionBreakdown.map((section) => (
               <div
                 key={section.label}
@@ -498,6 +590,70 @@ export default function StudentResultPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── Actionable Recommendations ── */}
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-gray-400">
+              assignment_turned_in
+            </span>
+            <h2 className="font-hanken text-2xl font-bold text-gray-900 dark:text-white">
+              Rekomendasi Aksi Mandiri (Actionable Recommendations)
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sectionBreakdown.map((section) => {
+              const { levelMeta, recommendation, actionLink } = getSectionGuidance(section.key, section.score);
+              return (
+                <div
+                  key={section.label}
+                  className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-150 dark:border-gray-800 p-6 hover:shadow-lg transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div
+                        className={`w-10 h-10 rounded-lg ${section.bg} ${section.color} flex items-center justify-center border border-current/10`}
+                      >
+                        <span className="material-symbols-outlined text-lg">
+                          {section.icon}
+                        </span>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${levelMeta.color}`}>
+                        {levelMeta.label}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="font-hanken text-base font-bold text-gray-950 dark:text-white">
+                        {section.label}
+                      </h3>
+                      <p className="font-inter text-xs text-gray-550 dark:text-gray-400 mt-2 leading-relaxed">
+                        {recommendation}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    {actionLink ? (
+                      <Link
+                        href={actionLink.href}
+                        className={`inline-flex items-center gap-1.5 text-xs font-bold ${section.color} hover:underline`}
+                      >
+                        <span>{actionLink.label}</span>
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </Link>
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-550 uppercase tracking-wider">
+                        Rekomendasi Belajar Mandiri
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
