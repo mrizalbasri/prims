@@ -11,6 +11,7 @@ export interface QuestionData {
   correctAnswer: string;
   explanation?: string;
   metadata?: {
+    audioUrl?: string;
     topic?: string;
     skill?: string;
   };
@@ -228,6 +229,162 @@ What can be inferred about the author's view on AI development?`,
 ];
 
 /**
+ * Sample Listening Questions
+ */
+export const listeningQuestions: QuestionData[] = [
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.EASY,
+    questionText: 'According to the conversation, what is the deadline to register for the student orientation program?',
+    options: ['July 5th', 'July 10th', 'July 15th', 'July 20th'],
+    correctAnswer: 'July 15th',
+    explanation: 'The speaker explicitly states that the student orientation registration deadline is Monday, July 15th.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      topic: 'Orientation Registration',
+      skill: 'Detail Identification',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.EASY,
+    questionText: 'Where will the main orientation event be held?',
+    options: ['The Central Library', 'The Auditorium', 'The Science Lab', 'The Gymnasium'],
+    correctAnswer: 'The Auditorium',
+    explanation: 'The host mentions that all new students should gather in the Auditorium for the opening ceremony.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      topic: 'Event Location',
+      skill: 'Detail Identification',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.MEDIUM,
+    questionText: 'What document must students bring to receive their student ID cards?',
+    options: ['A high school diploma', 'A payment receipt', 'An enrollment confirmation letter', 'A birth certificate'],
+    correctAnswer: 'An enrollment confirmation letter',
+    explanation: 'The registrar explains that students must present their enrollment confirmation letter to collect their ID card.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      topic: 'Required Documents',
+      skill: 'Detail Identification',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.MEDIUM,
+    questionText: 'Which class is currently full and unavailable for immediate enrollment?',
+    options: ['Introduction to Physics', 'Calculus I', 'Academic Writing', 'Basic Chemistry'],
+    correctAnswer: 'Academic Writing',
+    explanation: 'The adviser notes that the Academic Writing course is fully booked but students can join the waitlist.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      topic: 'Course Availability',
+      skill: 'Inference',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.HARD,
+    questionText: 'What is the adviser\'s main recommendation for students who cannot register for their preferred courses?',
+    options: [
+      'Take a gap semester',
+      'Register for elective courses first',
+      'Speak directly to the dean of the faculty',
+      'Wait for the second round of registration next month'
+    ],
+    correctAnswer: 'Register for elective courses first',
+    explanation: 'The adviser recommends completing general elective requirements if core classes are unavailable in the first semester.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      topic: 'Academic Advising',
+      skill: 'Determining Speaker Recommendation',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.EASY,
+    questionText: 'According to the lecture, what is the primary source of solar energy production?',
+    options: ['Wind turbines', 'Photovoltaic cells', 'Geothermal vents', 'Hydroelectric dams'],
+    correctAnswer: 'Photovoltaic cells',
+    explanation: 'The lecturer notes that photovoltaic cells are the primary technology used to convert sunlight into electricity.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      topic: 'Renewable Energy',
+      skill: 'Technical Terminology',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.MEDIUM,
+    questionText: 'What is the main limitation of wind power discussed by the speaker?',
+    options: [
+      'It is too expensive to construct turbines',
+      'It produces harmful carbon emissions',
+      'Wind speed is highly intermittent and unpredictable',
+      'Turbines require too much land space'
+    ],
+    correctAnswer: 'Wind speed is highly intermittent and unpredictable',
+    explanation: 'The speaker highlights intermittency as wind power\'s primary challenge because wind does not blow consistently.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      topic: 'Wind Energy',
+      skill: 'Identifying Key Arguments',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.MEDIUM,
+    questionText: 'Which country is cited as a leader in geothermal energy usage?',
+    options: ['Iceland', 'Australia', 'Brazil', 'Japan'],
+    correctAnswer: 'Iceland',
+    explanation: 'Iceland is highlighted as a country that derives a vast majority of its heating and electricity from geothermal resources.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      topic: 'Geothermal Leaders',
+      skill: 'Detail Identification',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.HARD,
+    questionText: 'What can be inferred about the future of global renewable energy storage?',
+    options: [
+      'Battery technology is already sufficient for all grid demands',
+      'Storage will become less important as solar panels improve',
+      'Advancements in battery capacity are crucial for transitioning away from fossil fuels',
+      'Governments will ban energy storage due to safety concerns'
+    ],
+    correctAnswer: 'Advancements in battery capacity are crucial for transitioning away from fossil fuels',
+    explanation: 'The lecturer concludes that solving the storage problem through larger, cheaper batteries is essential for a fully renewable grid.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      topic: 'Grid Storage Futures',
+      skill: 'Drawing Inferences',
+    },
+  },
+  {
+    sectionType: SectionType.LISTENING,
+    difficulty: QuestionDifficulty.HARD,
+    questionText: 'What is the speaker\'s attitude toward the pace of the global transition to green energy?',
+    options: [
+      'Highly optimistic that it will be completed within five years',
+      'Concerned that the transition is currently too slow to meet climate targets',
+      'Indifferent to the timing of the transition',
+      'Skeptical that renewable energy will ever be viable'
+    ],
+    correctAnswer: 'Concerned that the transition is currently too slow to meet climate targets',
+    explanation: 'The speaker expresses worry that current investment rates are insufficient to meet international carbon reduction deadlines.',
+    metadata: {
+      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      topic: 'Transition Pace Assessment',
+      skill: 'Determining Speaker Attitude',
+    },
+  },
+];
+
+/**
  * Sample Writing Prompts
  */
 export const writingPrompts: PromptData[] = [
@@ -370,6 +527,9 @@ export function getRandomQuestions(
     case SectionType.READING:
       pool = readingQuestions;
       break;
+    case SectionType.LISTENING:
+      pool = listeningQuestions;
+      break;
     default:
       return [];
   }
@@ -393,5 +553,12 @@ export function getRandomPrompt(sectionType: SectionType): PromptData | null {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-export const SECTION_ORDER = [SectionType.VOCABULARY, SectionType.GRAMMAR, SectionType.READING, SectionType.WRITING, SectionType.SPEAKING];
+export const SECTION_ORDER = [
+  SectionType.VOCABULARY,
+  SectionType.GRAMMAR,
+  SectionType.LISTENING,
+  SectionType.READING,
+  SectionType.WRITING,
+  SectionType.SPEAKING,
+];
 

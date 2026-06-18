@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
       const sectionScores = {
         vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
         grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,
+        listening: rawScores.LISTENING ?? rawScores.listening ?? 0,
         reading: rawScores.READING ?? rawScores.reading ?? 0,
         writing: rawScores.WRITING ?? rawScores.writing ?? 0,
         speaking: rawScores.SPEAKING ?? rawScores.speaking ?? 0,
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
           ? {
               vocabulary: sectionScores.vocabulary || 0,
               grammar: sectionScores.grammar || 0,
+              listening: sectionScores.listening || 0,
               reading: sectionScores.reading || 0,
               writing: sectionScores.writing || 0,
               speaking: sectionScores.speaking || 0,

@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
     const scores = {
       vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
       grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,
+      listening: rawScores.LISTENING ?? rawScores.listening ?? 0,
       reading: rawScores.READING ?? rawScores.reading ?? 0,
       writing: rawScores.WRITING ?? rawScores.writing ?? 0,
       speaking: rawScores.SPEAKING ?? rawScores.speaking ?? 0,

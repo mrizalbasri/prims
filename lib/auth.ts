@@ -1,13 +1,16 @@
 import { compare, hash } from 'bcryptjs';
-import { sign, verify } from 'jsonwebtoken';
+import { sign, verify, SignOptions } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { z } from 'zod';
 
-
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET environment variable is required in production.');
+}
+const JWT_SECRET_KEY = JWT_SECRET || 'dev-secret-key-for-local-testing';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JWTPayload {
@@ -46,7 +49,7 @@ export async function verifyPassword(password: string, hashedPassword: string): 
  * Generate a JWT token for a user
  */
 export function generateToken(payload: JWTPayload): string {
-  return sign(payload as object, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
+  return sign(payload as object, JWT_SECRET_KEY, { expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'] });
 }
 
 /**
@@ -54,18 +57,13 @@ export function generateToken(payload: JWTPayload): string {
  */
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return verify(token, JWT_SECRET) as JWTPayload;
-  } catch (error) {
+    return verify(token, JWT_SECRET_KEY) as JWTPayload;
+  } catch {
     return null;
   }
 }
 
-/**
- * Validate if email domain is allowed for registration
- */
-export function isAllowedEmailDomain(email: string): boolean {
-  return true; // Semua email diizinkan
-}
+
 
 /**
  * Set authentication cookie
@@ -123,7 +121,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     });
 
     return user;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -153,7 +151,7 @@ export async function getCurrentUserFromRequest(request: NextRequest): Promise<A
     });
 
     return user;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -221,11 +219,13 @@ export interface RegisterData {
   cohort?: string;
 }
 
+const emailSchema = z.string().email();
+
 export function validateRegistrationData(data: RegisterData): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Email validation
-  if (!data.email || !data.email.includes('@')) {
+  if (!data.email || !emailSchema.safeParse(data.email).success) {
     errors.push('Invalid email format');
   } 
 
@@ -253,6 +253,7 @@ export async function createAuditLog(
   action: string,
   targetType: string,
   targetId?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>
 ) {
   try {

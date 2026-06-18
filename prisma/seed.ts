@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import prisma from '../lib/prisma';
-import { vocabularyQuestions, grammarQuestions, readingQuestions, writingPrompts, speakingPrompts } from '../lib/questions';
+import { vocabularyQuestions, grammarQuestions, listeningQuestions, readingQuestions, writingPrompts, speakingPrompts } from '../lib/questions';
 
 async function main() {
   console.log('🌱 Starting database seed...');
@@ -63,6 +63,24 @@ async function main() {
     });
   }
   console.log(`✅ Created ${readingQuestions.length} reading questions`);
+
+  // Seed Listening Questions
+  console.log('🎧 Seeding listening questions...');
+  for (const question of listeningQuestions) {
+    await prisma.question.create({
+      data: {
+        sectionType: question.sectionType,
+        difficulty: question.difficulty,
+        questionText: question.questionText,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        explanation: question.explanation,
+        metadata: question.metadata || {},
+        isActive: true,
+      },
+    });
+  }
+  console.log(`✅ Created ${listeningQuestions.length} listening questions`);
 
   // Seed Writing Prompts
   console.log('✍️  Seeding writing prompts...');

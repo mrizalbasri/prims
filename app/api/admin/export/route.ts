@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
       'Completed At',
       'Vocabulary Score',
       'Grammar Score',
+      'Listening Score',
       'Reading Score',
       'Writing Score',
       'Speaking Score',
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
       const sectionScores = {
         vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
         grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,
+        listening: rawScores.LISTENING ?? rawScores.listening ?? 0,
         reading: rawScores.READING ?? rawScores.reading ?? 0,
         writing: rawScores.WRITING ?? rawScores.writing ?? 0,
         speaking: rawScores.SPEAKING ?? rawScores.speaking ?? 0,
@@ -107,6 +109,7 @@ export async function GET(request: NextRequest) {
         attempt?.completedAt?.toISOString() || '',
         typeof sectionScores.vocabulary === 'number' ? sectionScores.vocabulary.toFixed(2) : '0.00',
         typeof sectionScores.grammar === 'number' ? sectionScores.grammar.toFixed(2) : '0.00',
+        typeof sectionScores.listening === 'number' ? sectionScores.listening.toFixed(2) : '0.00',
         typeof sectionScores.reading === 'number' ? sectionScores.reading.toFixed(2) : '0.00',
         typeof sectionScores.writing === 'number' ? sectionScores.writing.toFixed(2) : '0.00',
         typeof sectionScores.speaking === 'number' ? sectionScores.speaking.toFixed(2) : '0.00',

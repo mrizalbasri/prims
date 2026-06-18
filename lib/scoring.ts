@@ -5,9 +5,10 @@ import prisma from "@/lib/prisma";
  * Scoring weights as per SRS requirements
  */
 export const SECTION_WEIGHTS = {
-  VOCABULARY: 0.2,
-  GRAMMAR: 0.2,
-  READING: 0.25,
+  VOCABULARY: 0.15,
+  GRAMMAR: 0.15,
+  LISTENING: 0.15,
+  READING: 0.2,
   WRITING: 0.2,
   SPEAKING: 0.15,
 };
@@ -18,6 +19,7 @@ export const SECTION_WEIGHTS = {
 export const TIME_LIMITS = {
   VOCABULARY: 480, // 8 minutes
   GRAMMAR: 480, // 8 minutes
+  LISTENING: 600, // 10 minutes
   READING: 720, // 12 minutes
   WRITING: 600, // 10 minutes
   SPEAKING: 420, // 7 minutes
@@ -83,7 +85,34 @@ export async function calculateObjectiveScore(
 
   if (totalQuestions === 0) return 0;
 
-  const correctCount = answers.filter((a: any) => a.isCorrect).length;
+  const correctCount = answers.filter((a: { isCorrect: boolean }) => a.isCorrect).length;
+
+  // Raw score is percentage (0-100)
+  return (correctCount / totalQuestions) * 100;
+}
+
+/**
+ * Calculate raw score using pre-fetched database data to avoid N+1 queries.
+ */
+export function calculateObjectiveScoreFromData(
+  feedback: string | null,
+  objectiveAnswers: Array<{ isCorrect: boolean }>,
+): number {
+  let totalQuestions = 15; // default fallback
+  if (feedback) {
+    try {
+      const parsed = JSON.parse(feedback);
+      if (parsed.questions && Array.isArray(parsed.questions)) {
+        totalQuestions = parsed.questions.length;
+      }
+    } catch (e) {
+      console.error("Error parsing feedback for totalQuestions:", e);
+    }
+  }
+
+  if (totalQuestions === 0) return 0;
+
+  const correctCount = objectiveAnswers.filter((a) => a.isCorrect).length;
 
   // Raw score is percentage (0-100)
   return (correctCount / totalQuestions) * 100;
@@ -106,6 +135,7 @@ export function calculateWeightedScore(
 export interface SectionScores {
   vocabulary: number;
   grammar: number;
+  listening: number;
   reading: number;
   writing: number;
   speaking: number;
@@ -115,6 +145,7 @@ export function calculateTotalScore(scores: SectionScores): number {
   return (
     scores.vocabulary * SECTION_WEIGHTS.VOCABULARY +
     scores.grammar * SECTION_WEIGHTS.GRAMMAR +
+    (scores.listening || 0) * SECTION_WEIGHTS.LISTENING +
     scores.reading * SECTION_WEIGHTS.READING +
     scores.writing * SECTION_WEIGHTS.WRITING +
     scores.speaking * SECTION_WEIGHTS.SPEAKING
@@ -169,6 +200,7 @@ function parseAiJson(text: string): { score: number; feedback: any } {
   if ('structureScore' in parsed) feedback.structureScore = Number(parsed.structureScore);
   if ('fluencyScore' in parsed) feedback.fluencyScore = Number(parsed.fluencyScore);
   if ('pronunciationScore' in parsed) feedback.pronunciationScore = Number(parsed.pronunciationScore);
+  if ('transcript' in parsed) feedback.transcript = String(parsed.transcript);
 
   return {
     score,
@@ -190,8 +222,16 @@ async function runGeminiScoringWithFallback(
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(apiKey);
 
+  const generationConfig = {
+    responseMimeType: "application/json",
+    temperature: 0.1,
+  };
+
   try {
-    const primary = genAI.getGenerativeModel({ model: preferredModel });
+    const primary = genAI.getGenerativeModel({ 
+      model: preferredModel,
+      generationConfig,
+    });
     const parts: any[] = [];
     if (audioData) {
       parts.push({
@@ -211,7 +251,10 @@ async function runGeminiScoringWithFallback(
       primaryError,
     });
 
-    const fallback = genAI.getGenerativeModel({ model: fallbackModel });
+    const fallback = genAI.getGenerativeModel({ 
+      model: fallbackModel,
+      generationConfig,
+    });
     const parts: any[] = [];
     if (audioData) {
       parts.push({
@@ -400,8 +443,8 @@ You are an English language speaking assessment expert. Score the following stud
 PROMPT:
 ${promptText}
 
-STUDENT TRANSCRIPT:
-${transcriptText}
+${audioUrl ? `Please transcribe the audio recording and include it in the "transcript" field of the JSON output.` : `STUDENT TRANSCRIPT:
+${transcriptText}`}
 
 RUBRIC:
 ${rubric ? JSON.stringify(rubric, null, 2) : "Standard speaking assessment criteria"}
@@ -421,6 +464,7 @@ Return your response in JSON format:
   "fluencyScore": <number 0-100 for fluency and rhythm>,
   "pronunciationScore": <number 0-100 for pronunciation and clarity>,
   "grammarScore": <number 0-100 for grammar usage>,
+  ${audioUrl ? `"transcript": "<precise English transcription of the spoken audio>",` : ""}
   "feedback": {
     "grammar": "<feedback in Indonesian>",
     "vocabulary": "<feedback in Indonesian>",
@@ -478,15 +522,26 @@ Return your response in JSON format:
 export async function finalizeTestResults(
   testAttemptId: string,
 ): Promise<void> {
-  // Get all section attempts
-  const sectionAttempts = await prisma.sectionAttempt.findMany({
-    where: { testAttemptId },
+  // Get test attempt with sections and preloaded objective answers to avoid N+1 queries
+  const testAttempt = await prisma.testAttempt.findUnique({
+    where: { id: testAttemptId },
     include: {
-      writingResponse: true,
-      speakingResponse: true,
+      sectionAttempts: {
+        include: {
+          writingResponse: true,
+          speakingResponse: true,
+          objectiveAnswers: true,
+        },
+      },
     },
   });
 
+  if (!testAttempt) {
+    throw new Error(`Test attempt ${testAttemptId} not found`);
+  }
+
+  const userId = testAttempt.userId;
+  const sectionAttempts = testAttempt.sectionAttempts;
   const scores: Record<string, number> = {};
 
   // Calculate scores for each section
@@ -496,10 +551,11 @@ export async function finalizeTestResults(
     if (
       section.sectionType === SectionType.VOCABULARY ||
       section.sectionType === SectionType.GRAMMAR ||
-      section.sectionType === SectionType.READING
+      section.sectionType === SectionType.READING ||
+      section.sectionType === SectionType.LISTENING
     ) {
-      // Objective sections
-      rawScore = await calculateObjectiveScore(section.id);
+      // Objective sections - calculated using preloaded data
+      rawScore = calculateObjectiveScoreFromData(section.feedback, section.objectiveAnswers);
     } else if (section.sectionType === SectionType.WRITING) {
       // Score already set by processAIScoring into SectionAttempt.rawScore
       rawScore = section.rawScore;
@@ -524,6 +580,7 @@ export async function finalizeTestResults(
   const totalScore = calculateTotalScore({
     vocabulary: scores[SectionType.VOCABULARY] || 0,
     grammar: scores[SectionType.GRAMMAR] || 0,
+    listening: scores[SectionType.LISTENING] || 0,
     reading: scores[SectionType.READING] || 0,
     writing: scores[SectionType.WRITING] || 0,
     speaking: scores[SectionType.SPEAKING] || 0,
@@ -531,25 +588,24 @@ export async function finalizeTestResults(
 
   const level = getProficiencyLevel(totalScore);
 
-  // Create or update final result
+  // Create or update final result (safely using pre-fetched userId)
   await prisma.finalResult.upsert({
     where: { testAttemptId },
     create: {
       testAttemptId,
-        userId: (await prisma.testAttempt.findUnique({where: {id: testAttemptId}}))?.userId || "",
-      
-      
-      
-      
-      
+      userId,
       overallScore: totalScore,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sectionScores: scores as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       overallLevel: level as any,
       cefrLevel: getCefrLevel(totalScore),
     },
     update: {
       overallScore: totalScore,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sectionScores: scores as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       overallLevel: level as any,
       cefrLevel: getCefrLevel(totalScore),
     },

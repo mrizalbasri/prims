@@ -20,9 +20,14 @@ function createPrismaClient(): PrismaClient {
     }),
   );
 
+  const logOptions = process.env.NODE_ENV === "production"
+    ? ["warn", "error"] as const
+    : ["query", "info", "warn", "error"] as const;
+
   return new PrismaClient({
     adapter,
-    log: ["query", "info", "warn", "error"],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    log: logOptions as any,
   });
 }
 

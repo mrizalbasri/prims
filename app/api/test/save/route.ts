@@ -10,12 +10,13 @@ interface SaveAnswerRequest {
   writingResponse?: string;
   speakingResponse?: string;
   speakingAudioUrl?: string;
-  currentSection: "vocabulary" | "grammar" | "reading" | "writing" | "speaking";
+  currentSection: "vocabulary" | "grammar" | "listening" | "reading" | "writing" | "speaking";
 }
 
 const SECTION_TYPE_MAP: Record<string, SectionType> = {
   vocabulary: SectionType.VOCABULARY,
   grammar: SectionType.GRAMMAR,
+  listening: SectionType.LISTENING,
   reading: SectionType.READING,
   writing: SectionType.WRITING,
   speaking: SectionType.SPEAKING,
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
     if (
       (sectionType === SectionType.VOCABULARY ||
         sectionType === SectionType.GRAMMAR ||
+        sectionType === SectionType.LISTENING ||
         sectionType === SectionType.READING) &&
       answers &&
       typeof answers === 'object'
@@ -158,6 +160,7 @@ export async function POST(request: NextRequest) {
     const SECTION_ORDER = [
       SectionType.VOCABULARY,
       SectionType.GRAMMAR,
+      SectionType.LISTENING,
       SectionType.READING,
       SectionType.WRITING,
       SectionType.SPEAKING,

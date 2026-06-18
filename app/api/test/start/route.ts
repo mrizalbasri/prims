@@ -9,6 +9,7 @@ import { getRandomQuestions, getRandomPrompt } from '@/lib/questions';
 const SECTION_ORDER = [
   SectionType.VOCABULARY,
   SectionType.GRAMMAR,
+  SectionType.LISTENING,
   SectionType.READING,
   SectionType.WRITING,
   SectionType.SPEAKING,
@@ -150,10 +151,12 @@ export async function POST(request: NextRequest) {
       if (
         sectionAttempt.sectionType === SectionType.VOCABULARY ||
         sectionAttempt.sectionType === SectionType.GRAMMAR ||
-        sectionAttempt.sectionType === SectionType.READING
+        sectionAttempt.sectionType === SectionType.READING ||
+        sectionAttempt.sectionType === SectionType.LISTENING
       ) {
         const count =
-          sectionAttempt.sectionType === SectionType.READING ? 10 : 15;
+          sectionAttempt.sectionType === SectionType.READING ||
+          sectionAttempt.sectionType === SectionType.LISTENING ? 10 : 15;
         
         // Fetch questions from database
         const dbQuestions = await prisma.question.findMany({
@@ -188,6 +191,7 @@ export async function POST(request: NextRequest) {
               questionText: q.questionText,
               options: q.options,
               correctAnswer: q.correctAnswer,
+              metadata: q.metadata || {},
             };
           }),
         };

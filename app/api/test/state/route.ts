@@ -7,14 +7,16 @@ import { getCurrentUserFromRequest } from '@/lib/auth';
 const SECTION_TYPES_ORDER = [
   SectionType.VOCABULARY,
   SectionType.GRAMMAR,
+  SectionType.LISTENING,
   SectionType.READING,
   SectionType.WRITING,
   SectionType.SPEAKING,
 ];
 
-const FRONTEND_SECTION_MAP: Record<SectionType, "vocabulary" | "grammar" | "reading" | "writing" | "speaking"> = {
+const FRONTEND_SECTION_MAP: Record<SectionType, "vocabulary" | "grammar" | "listening" | "reading" | "writing" | "speaking"> = {
   VOCABULARY: "vocabulary",
   GRAMMAR: "grammar",
+  LISTENING: "listening",
   READING: "reading",
   WRITING: "writing",
   SPEAKING: "speaking",
@@ -23,6 +25,7 @@ const FRONTEND_SECTION_MAP: Record<SectionType, "vocabulary" | "grammar" | "read
 const DURATION_MAP: Record<SectionType, number> = {
   VOCABULARY: 8, // 8 minutes
   GRAMMAR: 8,
+  LISTENING: 10,
   READING: 12,
   WRITING: 10,
   SPEAKING: 7,
@@ -69,11 +72,12 @@ export async function GET(request: NextRequest) {
       if (sa && sa.feedback) {
         try {
           const parsed = JSON.parse(sa.feedback);
-          if (secType === SectionType.VOCABULARY || secType === SectionType.GRAMMAR || secType === SectionType.READING) {
+          if (secType === SectionType.VOCABULARY || secType === SectionType.GRAMMAR || secType === SectionType.READING || secType === SectionType.LISTENING) {
             questions = (parsed.questions || []).map((q: any) => ({
               id: q.id,
               prompt: q.questionText,
               options: q.options,
+              metadata: q.metadata || {},
             }));
           } else {
             questions = [

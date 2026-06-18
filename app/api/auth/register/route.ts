@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, UserStatus, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { 
   hashPassword, 
@@ -40,9 +40,8 @@ export async function POST(request: NextRequest) {
 
     // Determine role based on email domain
     const emailDomain = body.email.split('@')[1]?.toLowerCase();
-    // Jika email mengandung 'admin' atau domain president.ac.id admin, jadikan ADMIN.
-    // Selain itu STUDENT.
-    const role = (emailDomain?.includes('admin') || emailDomain === 'admin.president.ac.id') 
+    // Strict admin email domain whitelist
+    const role = (emailDomain === 'admin.president.ac.id') 
       ? UserRole.ADMIN 
       : UserRole.STUDENT;
 
