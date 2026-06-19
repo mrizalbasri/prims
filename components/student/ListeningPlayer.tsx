@@ -13,6 +13,7 @@ export default function ListeningPlayer({ audioUrl }: ListeningPlayerProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isEnded, setIsEnded] = useState(false);
+  const [isPlayPending, setIsPlayPending] = useState(false);
 
   // Initialize Audio
   useEffect(() => {
@@ -47,15 +48,25 @@ export default function ListeningPlayer({ audioUrl }: ListeningPlayerProps) {
   }, [audioUrl]);
 
   const togglePlay = () => {
-    if (!audioRef.current || isEnded) return;
+    if (!audioRef.current || isEnded || isPlayPending) return;
 
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
       if (playCount < 2) {
-        audioRef.current.play().catch((err) => console.error("Audio playback error:", err));
-        setIsPlaying(true);
+        setIsPlayPending(true);
+        audioRef.current.play()
+          .then(() => {
+            setIsPlayPending(false);
+            setIsPlaying(true);
+          })
+          .catch((err) => {
+            setIsPlayPending(false);
+            if (err.name !== "AbortError") {
+              console.error("Audio playback error:", err);
+            }
+          });
       }
     }
   };
@@ -90,18 +101,22 @@ export default function ListeningPlayer({ audioUrl }: ListeningPlayerProps) {
         {/* Play Button */}
         <button
           onClick={togglePlay}
-          disabled={isEnded}
+          disabled={isEnded || isPlayPending}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-            isEnded
+            isEnded || isPlayPending
               ? "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
               : isPlaying
               ? "bg-amber-500 hover:bg-amber-600 text-slate-950 hover:shadow-lg hover:shadow-amber-500/20"
-              : "bg-teal-550 hover:bg-teal-600 text-slate-950 hover:shadow-lg hover:shadow-teal-550/20"
+              : "bg-teal-550 hover:bg-teal-650 text-slate-950 hover:shadow-lg hover:shadow-teal-550/20"
           }`}
         >
-          <span className="material-symbols-outlined text-2xl">
-            {isPlaying ? "pause" : "play_arrow"}
-          </span>
+          {isPlayPending ? (
+            <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <span className="material-symbols-outlined text-2xl">
+              {isPlaying ? "pause" : "play_arrow"}
+            </span>
+          )}
         </button>
 
         {/* Custom Timeline (Non-seekable) */}

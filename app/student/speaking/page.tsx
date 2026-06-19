@@ -66,6 +66,7 @@ export default function SpeakingPage() {
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -348,8 +349,13 @@ export default function SpeakingPage() {
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
       }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
       setIsRecording(false);
     } else {
       setTranscript("");
@@ -365,6 +371,7 @@ export default function SpeakingPage() {
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
@@ -568,7 +575,7 @@ export default function SpeakingPage() {
               <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-6 py-14 animate-fadeIn">
                 <div className="relative w-20 h-20">
                   <div className="absolute inset-0 rounded-full border-4 border-red-100 dark:border-red-950" />
-                  <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin animate-duration-1000" />
+                  <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin" />
                   <div className="absolute inset-2 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center animate-pulse">
                     <span className="material-symbols-outlined text-3xl text-red-600 dark:text-red-400 animate-pulse">smart_toy</span>
                   </div>
