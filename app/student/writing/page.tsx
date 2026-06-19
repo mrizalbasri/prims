@@ -401,7 +401,7 @@ export default function WritingPage() {
               <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-6 py-14 animate-fadeIn">
                 <div className="relative w-20 h-20">
                   <div className="absolute inset-0 rounded-full border-4 border-orange-100 dark:border-orange-950" />
-                  <div className="absolute inset-0 rounded-full border-4 border-orange-600 border-t-transparent animate-spin animate-duration-1000" />
+                  <div className="absolute inset-0 rounded-full border-4 border-orange-600 border-t-transparent animate-spin" />
                   <div className="absolute inset-2 bg-orange-50 dark:bg-orange-500/10 rounded-full flex items-center justify-center animate-pulse">
                     <span className="material-symbols-outlined text-3xl text-orange-600 dark:text-orange-400 animate-pulse">smart_toy</span>
                   </div>

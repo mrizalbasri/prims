@@ -28,8 +28,9 @@ type Result = {
     reading: number;
     writing: number;
     speaking: number;
-    total: number;
+    total?: number;
   };
+  overallScore: number;
   level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
   levelDescription: string;
 };
@@ -203,7 +204,7 @@ export default function StudentDashboardPage() {
                 </span>
                 <div className="flex items-baseline gap-4">
                   <h2 className="font-hanken text-6xl font-black text-gray-900 dark:text-white">
-                    {result.scores.total}
+                    {Math.round(result.overallScore)}
                   </h2>
                   <span className="text-sm font-semibold text-gray-400">/ 100</span>
                 </div>
@@ -236,7 +237,7 @@ export default function StudentDashboardPage() {
             </div>
 
             {/* Right Radar Chart Sub-component */}
-            <RadarChart scores={result.scores} />
+            <RadarChart scores={{ ...result.scores, total: result.overallScore }} />
           </div>
         )}
 

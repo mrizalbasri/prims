@@ -6,6 +6,7 @@ import SpeakingTestRecorder from "@/components/student/SpeakingTestRecorder";
 import HighlightableText from "@/components/student/HighlightableText";
 import ListeningPlayer from "@/components/student/ListeningPlayer";
 import BottomNavBar from "@/components/student/BottomNavBar";
+import Logo from "@/components/ui/Logo";
 
 type Question = {
   id: string;
@@ -303,7 +304,7 @@ export default function StudentTestPage() {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <span className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</span>
+            <Logo className="h-8 w-28" />
             <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
             <span className="font-inter text-sm font-semibold text-gray-500 dark:text-gray-400 hidden sm:block">Placement Test</span>
           </div>
