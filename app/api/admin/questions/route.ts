@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     } else if (sectionType === 'ALL' || !sectionType) {
       // Limit to objective sections for this manager
       filter.sectionType = {
-        in: [SectionType.VOCABULARY, SectionType.GRAMMAR, SectionType.READING]
+        in: [SectionType.VOCABULARY, SectionType.GRAMMAR, SectionType.LISTENING, SectionType.READING]
       };
     }
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sectionType, difficulty, questionText, options, correctAnswer, explanation } = body;
+    const { sectionType, difficulty, questionText, options, correctAnswer, explanation, metadata } = body;
 
     // Validation
     if (!sectionType || !difficulty || !questionText || !options || !correctAnswer) {
@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
         options: options.map(opt => opt.trim()),
         correctAnswer: correctAnswer.trim(),
         explanation: explanation ? explanation.trim() : null,
+        metadata: metadata || undefined,
         isActive: true,
       },
     });

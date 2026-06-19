@@ -10,6 +10,9 @@ type QuestionRow = {
   options: string[];
   correctAnswer: string;
   explanation: string | null;
+  metadata?: {
+    audioUrl?: string;
+  } | null;
 };
 
 export default function QuestionsTab() {
@@ -31,6 +34,7 @@ export default function QuestionsTab() {
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectAnswer, setFormCorrectAnswer] = useState("");
   const [formExplanation, setFormExplanation] = useState("");
+  const [formAudioUrl, setFormAudioUrl] = useState("");
 
   // Debounce questions search term
   useEffect(() => {
@@ -101,6 +105,7 @@ export default function QuestionsTab() {
     setFormOptions(["", "", "", ""]);
     setFormCorrectAnswer("");
     setFormExplanation("");
+    setFormAudioUrl("");
     setIsQuestionModalOpen(true);
   }
 
@@ -113,6 +118,7 @@ export default function QuestionsTab() {
     setFormOptions([...q.options]);
     setFormCorrectAnswer(q.correctAnswer);
     setFormExplanation(q.explanation || "");
+    setFormAudioUrl(q.metadata?.audioUrl || "");
     setIsQuestionModalOpen(true);
   }
 
@@ -142,6 +148,7 @@ export default function QuestionsTab() {
       options: formOptions,
       correctAnswer: formCorrectAnswer,
       explanation: formExplanation || null,
+      metadata: formSectionType === "LISTENING" ? { audioUrl: formAudioUrl } : undefined,
     };
 
     try {
@@ -241,6 +248,7 @@ export default function QuestionsTab() {
               <option value="ALL">Semua Modul</option>
               <option value="VOCABULARY">Vocabulary</option>
               <option value="GRAMMAR">Grammar</option>
+              <option value="LISTENING">Listening</option>
               <option value="READING">Reading</option>
             </select>
           </div>
@@ -284,6 +292,7 @@ export default function QuestionsTab() {
                       <span className={`px-2 py-0.5 rounded-md ${
                         q.sectionType === "VOCABULARY" ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200/30" :
                         q.sectionType === "GRAMMAR" ? "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border border-purple-200/30" :
+                        q.sectionType === "LISTENING" ? "bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border border-teal-200/30" :
                         "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/30"
                       }`}>
                         {q.sectionType}
@@ -390,10 +399,11 @@ export default function QuestionsTab() {
                     onChange={(e) => {
                       setFormSectionType(e.target.value);
                     }}
-                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
+                    className="w-full bg-gray-55 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
                   >
                     <option value="VOCABULARY">Vocabulary</option>
                     <option value="GRAMMAR">Grammar</option>
+                    <option value="LISTENING">Listening</option>
                     <option value="READING">Reading</option>
                   </select>
                 </div>
@@ -412,6 +422,23 @@ export default function QuestionsTab() {
                   </select>
                 </div>
               </div>
+
+              {/* Audio URL Input for Listening Section */}
+              {formSectionType === "LISTENING" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
+                    Audio URL (File MP3)
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={formAudioUrl}
+                    onChange={(e) => setFormAudioUrl(e.target.value)}
+                    placeholder="https://example.com/audio.mp3"
+                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
+                  />
+                </div>
+              )}
 
               {/* Question Text */}
               <div className="space-y-2">

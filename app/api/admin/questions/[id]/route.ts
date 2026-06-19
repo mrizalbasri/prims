@@ -23,7 +23,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { sectionType, difficulty, questionText, options, correctAnswer, explanation } = body;
+    const { sectionType, difficulty, questionText, options, correctAnswer, explanation, metadata } = body;
 
     // Check if question exists
     const existingQuestion = await prisma.question.findUnique({
@@ -64,6 +64,7 @@ export async function PUT(
         options: options.map(opt => opt.trim()),
         correctAnswer: correctAnswer.trim(),
         explanation: explanation ? explanation.trim() : null,
+        metadata: metadata || null,
       },
     });
 
