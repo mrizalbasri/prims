@@ -365,7 +365,7 @@ export default function SpeakingTab() {
 
       {/* Modal Form Tambah / Edit Skenario Bicara */}
       {isSpeakingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/40 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/30 backdrop-blur-md animate-fadeIn">
           <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-xl w-full overflow-hidden animate-scaleIn">
             <div className="px-6 py-4 border-b border-gray-150 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/20">
               <h3 className="font-hanken font-extrabold text-gray-900 dark:text-white text-base">

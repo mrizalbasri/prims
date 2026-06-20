@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { TIME_LIMITS, SECTION_WEIGHTS } from '@/lib/scoring';
 import { getRandomQuestions, getRandomPrompt } from '@/lib/questions';
+import { getTestSettings } from '@/lib/settings';
 
 const SECTION_ORDER = [
   SectionType.VOCABULARY,
@@ -148,15 +149,15 @@ export async function POST(request: NextRequest) {
 
       let feedbackJson: Record<string, unknown> = {};
 
+      const settings = await getTestSettings();
+
       if (
         sectionAttempt.sectionType === SectionType.VOCABULARY ||
         sectionAttempt.sectionType === SectionType.GRAMMAR ||
         sectionAttempt.sectionType === SectionType.READING ||
         sectionAttempt.sectionType === SectionType.LISTENING
       ) {
-        const count =
-          sectionAttempt.sectionType === SectionType.READING ||
-          sectionAttempt.sectionType === SectionType.LISTENING ? 10 : 15;
+        const count = settings.counts[sectionAttempt.sectionType] || 10;
         
         // Fetch questions from database
         const dbQuestions = await prisma.question.findMany({
@@ -168,10 +169,41 @@ export async function POST(request: NextRequest) {
 
         let selectedQuestions = [];
         if (dbQuestions.length > 0) {
-          // Shuffle database questions
-          selectedQuestions = [...dbQuestions]
-            .sort(() => Math.random() - 0.5)
-            .slice(0, Math.min(count, dbQuestions.length));
+          if (sectionAttempt.sectionType === SectionType.LISTENING) {
+            // Group questions by audioUrl to avoid splitting question sets belonging to the same audio
+            const groupsMap = new Map<string, typeof dbQuestions>();
+            dbQuestions.forEach((q) => {
+              const metadata = q.metadata as Record<string, unknown> | null;
+              const audioUrl = (metadata?.audioUrl as string) || "";
+              if (!groupsMap.has(audioUrl)) {
+                groupsMap.set(audioUrl, []);
+              }
+              groupsMap.get(audioUrl)!.push(q);
+            });
+
+            // Convert to array of groups and sort questions inside each group by id (chronological order)
+            const groups = Array.from(groupsMap.values()).map(g => {
+              return g.sort((a, b) => a.id.localeCompare(b.id));
+            });
+
+            // Shuffle the groups
+            const shuffledGroups = groups.sort(() => Math.random() - 0.5);
+
+            // Select groups until we have enough questions (target: count)
+            let totalSelected = 0;
+            for (const group of shuffledGroups) {
+              selectedQuestions.push(...group);
+              totalSelected += group.length;
+              if (totalSelected >= count) {
+                break;
+              }
+            }
+          } else {
+            // Standard random selection for other sections
+            selectedQuestions = [...dbQuestions]
+              .sort(() => Math.random() - 0.5)
+              .slice(0, Math.min(count, dbQuestions.length));
+          }
         } else {
           // Fallback to static questions
           selectedQuestions = getRandomQuestions(sectionAttempt.sectionType, count);

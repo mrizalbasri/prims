@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
       filter.questionText = { contains: search, mode: 'insensitive' };
     }
 
+    const difficulty = searchParams.get('difficulty');
+    if (difficulty && ['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) {
+      filter.difficulty = difficulty;
+    }
+
     const total = await prisma.question.count({ where: filter });
     const questions = await prisma.question.findMany({
       where: filter,
@@ -73,6 +78,67 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+
+    if (Array.isArray(body)) {
+      // Bulk insert
+      const createdQuestions = [];
+      for (const item of body) {
+        const { sectionType, difficulty, questionText, options, correctAnswer, explanation, metadata } = item;
+
+        // Validation
+        if (!sectionType || !difficulty || !questionText || !options || !correctAnswer) {
+          return NextResponse.json({ error: 'Missing required fields in one of the questions' }, { status: 400 });
+        }
+
+        if (!Object.values(SectionType).includes(sectionType as SectionType)) {
+          return NextResponse.json({ error: 'Invalid sectionType' }, { status: 400 });
+        }
+
+        if (!Object.values(QuestionDifficulty).includes(difficulty as QuestionDifficulty)) {
+          return NextResponse.json({ error: 'Invalid difficulty' }, { status: 400 });
+        }
+
+        if (!Array.isArray(options) || options.length !== 4) {
+          return NextResponse.json({ error: 'Options must be an array of exactly 4 strings' }, { status: 400 });
+        }
+
+        if (!options.includes(correctAnswer)) {
+          return NextResponse.json({ error: 'Correct answer must match one of the options exactly' }, { status: 400 });
+        }
+
+        const newQuestion = await prisma.question.create({
+          data: {
+            sectionType: sectionType as SectionType,
+            difficulty: difficulty as QuestionDifficulty,
+            questionText: questionText.trim(),
+            options: options.map(opt => opt.trim()),
+            correctAnswer: correctAnswer.trim(),
+            explanation: explanation ? explanation.trim() : null,
+            metadata: metadata || undefined,
+            isActive: true,
+          },
+        });
+        createdQuestions.push(newQuestion);
+      }
+
+      await createAuditLog(
+        user.id,
+        'QUESTIONS_BULK_CREATED',
+        'Question',
+        undefined,
+        { count: createdQuestions.length }
+      );
+
+      return NextResponse.json(
+        {
+          message: `${createdQuestions.length} questions created successfully`,
+          questions: createdQuestions,
+        },
+        { status: 201 }
+      );
+    }
+
+    // Single insert
     const { sectionType, difficulty, questionText, options, correctAnswer, explanation, metadata } = body;
 
     // Validation
