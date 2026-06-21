@@ -49,6 +49,7 @@ export default function StudentTestPage() {
   const router = useRouter();
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionIndex, setSectionIndex] = useState(0);
+  const [currentListeningGroupIdx, setCurrentListeningGroupIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [writingResponse, setWritingResponse] = useState("");
   const [speakingResponse, setSpeakingResponse] = useState("");
@@ -60,6 +61,12 @@ export default function StudentTestPage() {
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
 
   const currentSection = sections[sectionIndex];
+
+  const [prevSectionIndex, setPrevSectionIndex] = useState(sectionIndex);
+  if (sectionIndex !== prevSectionIndex) {
+    setPrevSectionIndex(sectionIndex);
+    setCurrentListeningGroupIdx(0);
+  }
 
   const readingPassage = useMemo(() => {
     if (!currentSection || currentSection.section !== "reading") return null;
@@ -90,22 +97,45 @@ export default function StudentTestPage() {
     return prompt;
   }, []);
 
-  const listeningAudioUrl = useMemo(() => {
-    if (!currentSection || currentSection.section !== "listening") return null;
-    for (const q of currentSection.questions) {
-      if (q.metadata?.audioUrl) {
-        return q.metadata.audioUrl;
+  const listeningGroups = useMemo(() => {
+    if (!currentSection || currentSection.section !== "listening") return [];
+    const groups: { audioUrl: string; questions: Question[] }[] = [];
+    currentSection.questions.forEach((q) => {
+      const audioUrl = q.metadata?.audioUrl || "";
+      let group = groups.find((g) => g.audioUrl === audioUrl);
+      if (!group) {
+        group = { audioUrl, questions: [] };
+        groups.push(group);
       }
-    }
-    return null;
+      group.questions.push(q);
+    });
+    return groups;
   }, [currentSection]);
 
   const scrollToQuestion = useCallback((idx: number) => {
+    if (currentSection?.section === "listening") {
+      const targetQ = currentSection.questions[idx];
+      if (targetQ) {
+        const groupIdx = listeningGroups.findIndex((g) =>
+          g.questions.some((q) => q.id === targetQ.id)
+        );
+        if (groupIdx !== -1) {
+          setCurrentListeningGroupIdx(groupIdx);
+          setTimeout(() => {
+            const el = document.getElementById(`q-${idx}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }, 100);
+          return;
+        }
+      }
+    }
     const el = document.getElementById(`q-${idx}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, []);
+  }, [currentSection, listeningGroups]);
 
   useEffect(() => {
     async function bootstrap(): Promise<void> {
@@ -442,95 +472,153 @@ export default function StudentTestPage() {
         ) : (
           /* Standard Single Column Layout for non-reading sections */
           <div className="max-w-3xl mx-auto space-y-8">
-            {currentSection.section === "listening" && listeningAudioUrl && (
+            {currentSection.section === "listening" && listeningGroups[currentListeningGroupIdx]?.audioUrl && (
               <div className="mb-6">
-                <ListeningPlayer audioUrl={listeningAudioUrl} />
+                <ListeningPlayer 
+                  audioUrl={listeningGroups[currentListeningGroupIdx].audioUrl} 
+                  key={listeningGroups[currentListeningGroupIdx].audioUrl}
+                />
               </div>
             )}
 
             <div className="space-y-6">
-              {currentSection.questions.map((question, idx) => (
-                <div 
-                  key={question.id} 
-                  id={`q-${idx}`}
-                  className="scroll-mt-24 bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 md:p-8 shadow-sm space-y-6"
-                >
-                  <div className="flex gap-4">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-mono font-bold text-sm">
-                      {idx + 1}
-                    </span>
-                    <h2 className="font-hanken text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-relaxed pt-0.5 select-none">
-                      {question.prompt}
-                    </h2>
-                  </div>
+              {currentSection.questions.map((question, idx) => {
+                if (currentSection.section === "listening") {
+                  const activeGroup = listeningGroups[currentListeningGroupIdx];
+                  if (!activeGroup || !activeGroup.questions.some((q) => q.id === question.id)) {
+                    return null;
+                  }
+                }
 
-                  {question.options && (
-                    <div className="grid grid-cols-1 gap-3 pl-0 md:pl-12">
-                      {question.options.map((option) => {
-                        const isSelected = answers[question.id] === option;
-                        return (
-                          <label 
-                            key={option}
-                            className={`group relative flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                              isSelected 
-                                ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
-                                : "border-gray-100 dark:border-gray-800 hover:border-teal-500/50 hover:bg-gray-50 dark:hover:bg-gray-800"
-                            }`}
-                          >
-                            <input 
-                              type="radio" 
-                              name={question.id}
-                              className="peer hidden"
-                              checked={isSelected}
-                              onChange={() => setAnswers(prev => ({ ...prev, [question.id]: option }))}
-                            />
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
-                              isSelected 
-                                ? "border-teal-500 bg-teal-500 text-white" 
-                                : "border-gray-300 dark:border-gray-650 group-hover:border-teal-500"
-                            }`}>
-                              {isSelected && <span className="material-symbols-outlined text-xs">check</span>}
-                            </div>
-                            <span className={`font-inter text-sm font-semibold ${
-                              isSelected ? "text-teal-650 dark:text-teal-400" : "text-gray-700 dark:text-gray-350"
-                            }`}>
-                              {option}
-                            </span>
-                          </label>
-                        );
-                      })}
+                return (
+                  <div 
+                    key={question.id} 
+                    id={`q-${idx}`}
+                    className="scroll-mt-24 bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 md:p-8 shadow-sm space-y-6"
+                  >
+                    <div className="flex gap-4">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-mono font-bold text-sm">
+                        {idx + 1}
+                      </span>
+                      <h2 className="font-hanken text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-relaxed pt-0.5 select-none">
+                        {question.prompt}
+                      </h2>
                     </div>
-                  )}
 
-                  {currentSection.section === "writing" && (
-                    <div className="pl-0 md:pl-12 space-y-2">
-                      <textarea
-                        value={writingResponse}
-                        onChange={(e) => setWritingResponse(e.target.value)}
-                        className="w-full min-h-[300px] p-6 rounded-2xl border-2 border-gray-250 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
-                        placeholder="Tulis esai tanggapan Anda di sini secara lengkap..."
-                      />
-                      <div className="flex justify-between items-center text-xs text-gray-400">
-                        <span>Patuhi batasan penulisan argumen akademik.</span>
-                        <span>{writingResponse.trim().split(/\s+/).filter(w => w.length > 0).length} kata</span>
+                    {question.options && (
+                      <div className="grid grid-cols-1 gap-3 pl-0 md:pl-12">
+                        {question.options.map((option) => {
+                          const isSelected = answers[question.id] === option;
+                          return (
+                            <label 
+                              key={option}
+                              className={`group relative flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                                isSelected 
+                                  ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
+                                  : "border-gray-100 dark:border-gray-800 hover:border-teal-500/50 hover:bg-gray-50 dark:hover:bg-gray-800"
+                              }`}
+                            >
+                              <input 
+                                type="radio" 
+                                name={question.id}
+                                className="peer hidden"
+                                checked={isSelected}
+                                onChange={() => setAnswers(prev => ({ ...prev, [question.id]: option }))}
+                              />
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
+                                isSelected 
+                                  ? "border-teal-500 bg-teal-500 text-white" 
+                                  : "border-gray-300 dark:border-gray-650 group-hover:border-teal-500"
+                              }`}>
+                                {isSelected && <span className="material-symbols-outlined text-xs">check</span>}
+                              </div>
+                              <span className={`font-inter text-sm font-semibold ${
+                                isSelected ? "text-teal-650 dark:text-teal-400" : "text-gray-700 dark:text-gray-350"
+                              }`}>
+                                {option}
+                              </span>
+                            </label>
+                          );
+                        })}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {currentSection.section === "speaking" && (
-                    <SpeakingTestRecorder
-                      text={speakingResponse}
-                      audioUrl={audioUrlState}
-                      onChange={(text, url) => {
-                        setSpeakingResponse(text);
-                        setAudioUrlState(url);
-                      }}
-                      onUploadingChange={setIsUploadingAudio}
-                    />
-                  )}
-                </div>
-              ))}
+                    {currentSection.section === "writing" && (
+                      <div className="pl-0 md:pl-12 space-y-2">
+                        <textarea
+                          value={writingResponse}
+                          onChange={(e) => setWritingResponse(e.target.value)}
+                          className="w-full min-h-[300px] p-6 rounded-2xl border-2 border-gray-250 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
+                          placeholder="Tulis esai tanggapan Anda di sini secara lengkap..."
+                        />
+                        <div className="flex justify-between items-center text-xs text-gray-400">
+                          <span>Patuhi batasan penulisan argumen akademik.</span>
+                          <span>{writingResponse.trim().split(/\s+/).filter(w => w.length > 0).length} kata</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {currentSection.section === "speaking" && (
+                      <SpeakingTestRecorder
+                        text={speakingResponse}
+                        audioUrl={audioUrlState}
+                        onChange={(text, url) => {
+                          setSpeakingResponse(text);
+                          setAudioUrlState(url);
+                        }}
+                        onUploadingChange={setIsUploadingAudio}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Listening Group Navigation Buttons */}
+            {currentSection.section === "listening" && (
+              <div className="flex justify-between items-center pt-6">
+                <button
+                  type="button"
+                  disabled={currentListeningGroupIdx === 0}
+                  onClick={() => {
+                    setCurrentListeningGroupIdx(prev => prev - 1);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="px-6 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-hanken font-bold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">arrow_back</span>
+                  Audio Sebelumnya
+                </button>
+
+                <span className="text-xs font-semibold text-gray-500">
+                  Audio {currentListeningGroupIdx + 1} dari {listeningGroups.length}
+                </span>
+
+                {currentListeningGroupIdx < listeningGroups.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentListeningGroupIdx(prev => prev + 1);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-750 text-white font-hanken font-bold text-sm hover:shadow-lg transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    Audio Berikutnya
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!isSectionComplete}
+                    onClick={() => void moveNext(false)}
+                    className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-hanken font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
+                  >
+                    Selesaikan Listening
+                    <span className="material-symbols-outlined text-sm">done_all</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

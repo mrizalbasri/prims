@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SectionType, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+import { getTestSettings } from '@/lib/settings';
 
 const SECTION_TYPES_ORDER = [
   SectionType.VOCABULARY,
@@ -64,6 +65,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const settings = await getTestSettings();
+
     // Construct frontend sections format with loaded questions/prompts
     const sectionsData = SECTION_TYPES_ORDER.map((secType) => {
       const sa = testAttempt.sectionAttempts.find((s) => s.sectionType === secType);
@@ -94,7 +97,7 @@ export async function GET(request: NextRequest) {
 
       return {
         section: FRONTEND_SECTION_MAP[secType],
-        durationMinutes: DURATION_MAP[secType],
+        durationMinutes: settings.durations[secType] || DURATION_MAP[secType],
         questions,
       };
     });
