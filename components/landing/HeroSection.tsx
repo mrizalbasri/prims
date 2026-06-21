@@ -32,7 +32,7 @@ function VocabCard({ className = "" }: { className?: string }) {
         {/* Quote Block Sentence */}
         <div className="border-l-2 border-teal-500/35 pl-3 mt-4">
           <p className="font-inter text-[11px] text-gray-600 dark:text-gray-450 italic leading-relaxed">
-            "Mobile phones are now ubiquitous in our lives."
+            &ldquo;Mobile phones are now ubiquitous in our lives.&rdquo;
           </p>
         </div>
       </div>
