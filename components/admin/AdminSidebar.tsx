@@ -19,7 +19,10 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const testItems = [
     { id: "analytics", label: "Analytics & Hasil Tes", icon: "analytics" },
-    { id: "questions", label: "Bank Soal Placement Test", icon: "quiz" },
+    { id: "questions-vocab", label: "Placement: Vocabulary", icon: "menu_book" },
+    { id: "questions-grammar", label: "Placement: Grammar", icon: "rule" },
+    { id: "questions-listening", label: "Placement: Listening", icon: "headphones" },
+    { id: "questions-reading", label: "Placement: Reading", icon: "chrome_reader_mode" },
   ];
 
   const studyItems = [
@@ -30,6 +33,7 @@ export default function AdminSidebar({
 
   const systemItems = [
     { id: "users", label: "Manajemen Pengguna", icon: "group" },
+    { id: "settings", label: "Pengaturan Tes", icon: "settings" },
     { id: "logs", label: "Log Aktivitas Sistem", icon: "receipt_long" },
   ];
 

@@ -13,6 +13,7 @@ import ResultsFilters from "@/components/admin/ResultsFilters";
 import ResultsTable, { Row } from "@/components/admin/ResultsTable";
 import UsersTab from "@/components/admin/UsersTab";
 import LogsTab from "@/components/admin/LogsTab";
+import SettingsTab from "@/components/admin/SettingsTab";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -240,8 +241,11 @@ export default function AdminDashboardPage() {
         {/* TAB 1.5: USERS MANAGEMENT */}
         {activeTab === "users" && <UsersTab />}
 
-        {/* TAB 1.5: QUESTIONS MANAGEMENT */}
-        {activeTab === "questions" && <QuestionsTab />}
+        {/* TAB 1.5: QUESTIONS MANAGEMENT (SPLIT) */}
+        {activeTab === "questions-vocab" && <QuestionsTab fixedSection="VOCABULARY" />}
+        {activeTab === "questions-grammar" && <QuestionsTab fixedSection="GRAMMAR" />}
+        {activeTab === "questions-listening" && <QuestionsTab fixedSection="LISTENING" />}
+        {activeTab === "questions-reading" && <QuestionsTab fixedSection="READING" />}
 
         {/* TAB 2: VOCABULARY */}
         {activeTab === "vocabulary" && <VocabularyTab />}
@@ -251,6 +255,9 @@ export default function AdminDashboardPage() {
 
         {/* TAB 4: SPEAKING */}
         {activeTab === "speaking" && <SpeakingTab />}
+
+        {/* TAB 4.5: SETTINGS */}
+        {activeTab === "settings" && <SettingsTab />}
 
         {/* TAB 5: LOGS */}
         {activeTab === "logs" && <LogsTab />}
