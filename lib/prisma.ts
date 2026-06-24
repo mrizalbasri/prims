@@ -13,10 +13,14 @@ function createPrismaClient(): PrismaClient {
     throw new Error("DATABASE_URL is required to initialize PrismaClient");
   }
 
+  const connectionLimit = process.env.DATABASE_MAX_CONNECTIONS
+    ? parseInt(process.env.DATABASE_MAX_CONNECTIONS, 10)
+    : 2;
+
   const adapter = new PrismaPg(
     new Pool({
       connectionString: databaseUrl,
-      max: 10,
+      max: connectionLimit,
     }),
   );
 

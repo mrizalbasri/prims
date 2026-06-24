@@ -73,16 +73,30 @@ export default function SpeakingPage() {
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+      // Clean up media stream and media recorder on unmount
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {
+          console.error("Failed to stop media recorder on unmount:", e);
+        }
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
     };
   }, []);
 
   useEffect(() => {
+    let rec: SpeechRecognitionInstance | null = null;
     if (typeof window !== "undefined") {
       const SpeechRecognition =
         (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance }).SpeechRecognition ||
         (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance }).webkitSpeechRecognition;
       if (SpeechRecognition) {
-        const rec = new SpeechRecognition();
+        rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
         rec.lang = "en-US";
@@ -122,6 +136,16 @@ export default function SpeakingPage() {
         }, 0);
       }
     }
+
+    return () => {
+      if (rec) {
+        try {
+          rec.stop();
+        } catch (e) {
+          console.error("Failed to stop speech recognition on unmount:", e);
+        }
+      }
+    };
   }, []);
 
   useEffect(() => {

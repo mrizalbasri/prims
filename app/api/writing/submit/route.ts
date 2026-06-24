@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, waitUntil } from 'next/server';
 import { ResponseStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
@@ -85,11 +85,13 @@ export async function POST(request: NextRequest) {
       { promptId, wordCount }
     );
 
-    // Process AI scoring asynchronously
-    processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
-      (error) => {
-        console.error('Writing scoring error:', error);
-      }
+    // Process AI scoring asynchronously using waitUntil to keep serverless function alive
+    waitUntil(
+      processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
+        (error) => {
+          console.error('Writing scoring error:', error);
+        }
+      )
     );
 
     return NextResponse.json(

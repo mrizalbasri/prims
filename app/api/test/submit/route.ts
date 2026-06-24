@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from 'next/server';
-import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { NextRequest, NextResponse, waitUntil } from 'next/server';
+import { SectionType, SectionStatus, TestAttemptStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI, scoreSpeakingWithAI, finalizeTestResults, calculateWeightedScore } from '@/lib/scoring';
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     try {
       const body: SubmitTestRequest = await request.json();
       testAttemptId = body?.testAttemptId;
-    } catch (e) {
+    } catch {
       // Body might be empty
     }
 
@@ -107,10 +107,12 @@ export async function POST(request: NextRequest) {
       { testAttemptId }
     );
 
-    // Process AI scoring asynchronously
-    processAIScoring(testAttemptId).catch((error) => {
-      console.error('AI scoring error:', error);
-    });
+    // Process AI scoring asynchronously using waitUntil to keep serverless function alive
+    waitUntil(
+      processAIScoring(testAttemptId).catch((error) => {
+        console.error('AI scoring error:', error);
+      })
+    );
 
     return NextResponse.json(
       {
@@ -184,7 +186,7 @@ async function processAIScoring(testAttemptId: string): Promise<void> {
             prisma.writingResponse.update({
               where: { id: section.writingResponse.id },
               data: {
-                feedback: feedback as any,
+                feedback: feedback as Prisma.InputJsonValue,
                 wordCount: section.writingResponse.content.trim().split(/\s+/).length,
               },
             }),
@@ -205,8 +207,8 @@ async function processAIScoring(testAttemptId: string): Promise<void> {
               const fb = JSON.parse(section.feedback);
               promptText = fb.prompt || promptText;
               rubric = fb.rubric || null;
-            } catch (e) {
-              console.error('Failed to parse speaking section feedback:', e);
+            } catch {
+              console.error('Failed to parse speaking section feedback');
             }
           }
 
@@ -232,7 +234,7 @@ async function processAIScoring(testAttemptId: string): Promise<void> {
             prisma.speakingResponse.update({
               where: { id: section.speakingResponse.id },
               data: {
-                feedback: feedback as any,
+                feedback: feedback as Prisma.InputJsonValue,
                 transcript: finalTranscriptText,
               },
             }),

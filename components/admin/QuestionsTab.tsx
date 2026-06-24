@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import QuestionFormModal from "./QuestionFormModal";
 
 type QuestionRow = {
   id: string;
@@ -13,19 +14,6 @@ type QuestionRow = {
   metadata?: {
     audioUrl?: string;
   } | null;
-};
-
-type GeneratedQuestion = {
-  questionText: string;
-  options: string[];
-  correctAnswer: string;
-  explanation: string;
-  sectionType: string;
-  difficulty: string;
-  metadata?: {
-    audioUrl?: string;
-    generatedBy?: string;
-  };
 };
 
 interface QuestionsTabProps {
@@ -47,29 +35,13 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
   // Form / Modal State
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionRow | null>(null);
-  const [formSectionType, setFormSectionType] = useState<"VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING">(fixedSection || "VOCABULARY");
-  const [formDifficulty, setFormDifficulty] = useState("EASY");
-  const [formQuestionText, setFormQuestionText] = useState("");
-  const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
-  const [formCorrectAnswer, setFormCorrectAnswer] = useState("");
-  const [formExplanation, setFormExplanation] = useState("");
-  const [formAudioUrl, setFormAudioUrl] = useState("");
-
-  // AI Generator state
-  const [modalMode, setModalMode] = useState<"MANUAL" | "AI">("MANUAL");
-  const [formPromptInput, setFormPromptInput] = useState("");
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [aiGeneratedQuestions, setAiGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
-  const [listeningSourceType, setListeningSourceType] = useState<"URL" | "SCRIPT">("URL");
-  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
-
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [initialAudioUrl, setInitialAudioUrl] = useState("");
+  const [initialDifficulty, setInitialDifficulty] = useState("EASY");
 
   const [prevFixedSection, setPrevFixedSection] = useState(fixedSection);
   if (fixedSection !== prevFixedSection) {
     setPrevFixedSection(fixedSection);
     setSectionFilter(fixedSection || "ALL");
-    setFormSectionType(fixedSection || "VOCABULARY");
   }
 
   // Group listening questions by audioUrl
@@ -175,190 +147,23 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
   // Open add modal
   function handleOpenAddModal() {
     setEditingQuestion(null);
-    setFormSectionType(fixedSection || "VOCABULARY");
-    setFormDifficulty("EASY");
-    setFormQuestionText("");
-    setFormOptions(["", "", "", ""]);
-    setFormCorrectAnswer("");
-    setFormExplanation("");
-    setFormAudioUrl("");
-    setModalMode("MANUAL");
-    setFormPromptInput("");
-    setAiGeneratedQuestions([]);
-    setListeningSourceType("URL");
-    setGeneratedAudioUrl(null);
+    setInitialAudioUrl("");
+    setInitialDifficulty("EASY");
     setIsQuestionModalOpen(true);
   }
 
   // Open add modal pre-filled for a specific audio URL
   function handleOpenAddModalForAudio(audioUrl: string, difficulty: string) {
     setEditingQuestion(null);
-    setFormSectionType("LISTENING");
-    setFormDifficulty(difficulty);
-    setFormQuestionText("");
-    setFormOptions(["", "", "", ""]);
-    setFormCorrectAnswer("");
-    setFormExplanation("");
-    setFormAudioUrl(audioUrl);
-    setModalMode("MANUAL");
-    setFormPromptInput("");
-    setAiGeneratedQuestions([]);
-    setListeningSourceType("URL");
-    setGeneratedAudioUrl(null);
+    setInitialAudioUrl(audioUrl);
+    setInitialDifficulty(difficulty);
     setIsQuestionModalOpen(true);
   }
 
   // Open edit modal
   function handleOpenEditModal(q: QuestionRow) {
     setEditingQuestion(q);
-    setFormSectionType(q.sectionType as "VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING");
-    setFormDifficulty(q.difficulty);
-    setFormQuestionText(q.questionText);
-    setFormOptions([...q.options]);
-    setFormCorrectAnswer(q.correctAnswer);
-    setFormExplanation(q.explanation || "");
-    setFormAudioUrl(q.metadata?.audioUrl || "");
-    setModalMode("MANUAL");
     setIsQuestionModalOpen(true);
-  }
-
-  // Save/Update question submit handler
-  async function handleSaveQuestion(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!formQuestionText.trim()) {
-      alert("Teks soal tidak boleh kosong.");
-      return;
-    }
-
-    if (formOptions.some((opt) => !opt.trim())) {
-      alert("Semua 4 pilihan jawaban harus diisi.");
-      return;
-    }
-
-    if (!formCorrectAnswer.trim()) {
-      alert("Silakan pilih kunci jawaban.");
-      return;
-    }
-
-    const payload = {
-      sectionType: formSectionType,
-      difficulty: formDifficulty,
-      questionText: formQuestionText,
-      options: formOptions,
-      correctAnswer: formCorrectAnswer,
-      explanation: formExplanation || null,
-      metadata: formSectionType === "LISTENING" ? { audioUrl: formAudioUrl } : undefined,
-    };
-
-    try {
-      let res;
-      if (editingQuestion) {
-        res = await fetch(`/api/admin/questions/${editingQuestion.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        res = await fetch("/api/admin/questions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      if (res.ok) {
-        alert(editingQuestion ? "Soal berhasil diperbarui!" : "Soal baru berhasil ditambahkan!");
-        setIsQuestionModalOpen(false);
-        setQuestionsPage(1);
-        setRefreshKey((prev) => prev + 1);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.error || "Gagal menyimpan soal.");
-      }
-    } catch (err) {
-      console.error("Save question error:", err);
-      alert("Terjadi kesalahan sistem saat menyimpan soal.");
-    }
-  }
-
-  // Generate Questions with AI
-  async function handleGenerateAIQuestions() {
-    if (!formPromptInput.trim()) {
-      alert(
-        formSectionType === "LISTENING"
-          ? (listeningSourceType === "URL" ? "Silakan masukkan Audio URL terlebih dahulu." : "Silakan masukkan topik atau naskah teks terlebih dahulu.")
-          : formSectionType === "READING"
-          ? "Silakan masukkan teks bacaan atau topik terlebih dahulu."
-          : "Silakan masukkan topik / tema terlebih dahulu."
-      );
-      return;
-    }
-
-    setIsAiGenerating(true);
-    setAiGeneratedQuestions([]);
-    setGeneratedAudioUrl(null);
-    try {
-      const res = await fetch("/api/admin/questions/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sectionType: formSectionType,
-          difficulty: formDifficulty,
-          promptInput: formPromptInput,
-          listeningSourceType: formSectionType === "LISTENING" ? listeningSourceType : undefined,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setAiGeneratedQuestions(data.questions || []);
-        if (data.audioUrl) {
-          setGeneratedAudioUrl(data.audioUrl);
-        }
-        // Auto scroll to preview card/questions
-        setTimeout(() => {
-          previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.error || "Gagal membuat soal dengan AI.");
-      }
-    } catch (err) {
-      console.error("AI generator error:", err);
-      alert("Terjadi kesalahan sistem saat menghubungi AI.");
-    } finally {
-      setIsAiGenerating(false);
-    }
-  }
-
-  // Bulk save AI generated questions
-  async function handleSaveAIQuestions() {
-    if (aiGeneratedQuestions.length === 0) return;
-    setIsQuestionsLoading(true);
-
-    try {
-      const res = await fetch("/api/admin/questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(aiGeneratedQuestions),
-      });
-
-      if (res.ok) {
-        alert(`${aiGeneratedQuestions.length} soal AI berhasil disimpan ke database!`);
-        setIsQuestionModalOpen(false);
-        setQuestionsPage(1);
-        setRefreshKey((prev) => prev + 1);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.error || "Gagal menyimpan soal AI.");
-      }
-    } catch (err) {
-      console.error("Bulk save questions error:", err);
-      alert("Terjadi kesalahan sistem saat menyimpan soal.");
-    } finally {
-      setIsQuestionsLoading(false);
-    }
   }
 
   const getSectionTitle = () => {
@@ -709,403 +514,19 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
 
       {/* MODAL FOR ADD/EDIT QUESTION */}
       {isQuestionModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/30 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-gray-855 rounded-3xl shadow-xl border border-gray-150 dark:border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-scaleIn">
-            
-            {/* Header */}
-            <div className="p-6 border-b border-gray-150 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/20">
-              <h2 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">
-                {editingQuestion ? "Edit Soal" : "Tambah Soal Baru"}
-              </h2>
-              <button
-                onClick={() => setIsQuestionModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 bg-transparent border-0 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-2xl">close</span>
-              </button>
-            </div>
-
-            {/* Mode Selector for Adding Questions */}
-            {!editingQuestion && (
-              <div className="flex border-b border-gray-150 dark:border-gray-700 bg-gray-50/20 dark:bg-gray-900/10 px-6">
-                <button
-                  type="button"
-                  onClick={() => setModalMode("MANUAL")}
-                  className={`px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer bg-transparent border-0 ${
-                    modalMode === "MANUAL"
-                      ? "border-blue-600 text-blue-600 dark:text-blue-400 font-extrabold"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Input Manual
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalMode("AI")}
-                  className={`px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer bg-transparent border-0 ${
-                    modalMode === "AI"
-                      ? "border-blue-600 text-blue-600 dark:text-blue-400 font-extrabold"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Generate dengan AI
-                </button>
-              </div>
-            )}
-
-            {modalMode === "AI" && !editingQuestion ? (
-              /* ==================== AI GENERATOR VIEW ==================== */
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Tipe Modul (Locked if fixedSection exists) */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">Tipe Modul</label>
-                    <select
-                      disabled={!!fixedSection}
-                      value={formSectionType}
-                      onChange={(e) => {
-                        setFormSectionType(e.target.value as "VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING");
-                      }}
-                      className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white disabled:opacity-50"
-                    >
-                      <option value="VOCABULARY">Vocabulary</option>
-                      <option value="GRAMMAR">Grammar</option>
-                      <option value="LISTENING">Listening</option>
-                      <option value="READING">Reading</option>
-                    </select>
-                  </div>
-
-                  {/* Difficulty */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">Tingkat Kesulitan</label>
-                    <select
-                      value={formDifficulty}
-                      onChange={(e) => setFormDifficulty(e.target.value)}
-                      className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-                    >
-                      <option value="EASY">Easy</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HARD">Hard</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Listening Source Type Selector */}
-                {formSectionType === "LISTENING" && (
-                  <div className="space-y-2 text-left mb-4">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">Sumber Audio</label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="listeningSourceType"
-                          value="URL"
-                          checked={listeningSourceType === "URL"}
-                          onChange={() => {
-                            setListeningSourceType("URL");
-                            setFormPromptInput("");
-                          }}
-                          className="text-blue-600 focus:ring-blue-500"
-                        />
-                        Tautan Audio URL (MP3)
-                      </label>
-                      <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="listeningSourceType"
-                          value="SCRIPT"
-                          checked={listeningSourceType === "SCRIPT"}
-                          onChange={() => {
-                            setListeningSourceType("SCRIPT");
-                            setFormPromptInput("");
-                          }}
-                          className="text-blue-600 focus:ring-blue-500"
-                        />
-                        Tulis Naskah / Topik (TTS Gratis)
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {/* Prompt/Source input */}
-                <div className="space-y-2 text-left">
-                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                    {formSectionType === "LISTENING"
-                      ? (listeningSourceType === "URL" ? "Audio URL (File MP3)" : "Topik Percakapan atau Teks Naskah")
-                      : formSectionType === "READING"
-                      ? "Teks Passage (atau Topik/Tema untuk menulis passage baru oleh AI)"
-                      : "Topik / Tema Soal (contoh: Tenses, Job Interview)"}
-                  </label>
-                  {formSectionType === "READING" || (formSectionType === "LISTENING" && listeningSourceType === "SCRIPT") ? (
-                    <textarea
-                      required
-                      value={formPromptInput}
-                      onChange={(e) => setFormPromptInput(e.target.value)}
-                      rows={6}
-                      placeholder={
-                        formSectionType === "READING"
-                          ? "Masukkan topik (contoh: Space Exploration) atau tempel teks bacaan Anda di sini..."
-                          : "Masukkan topik percakapan (contoh: A job interview at a tech company) atau tempel naskah teks percakapan lengkap di sini..."
-                      }
-                      className="w-full bg-gray-55 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white resize-none leading-relaxed"
-                    />
-                  ) : (
-                    <input
-                      type={formSectionType === "LISTENING" ? "url" : "text"}
-                      required
-                      value={formPromptInput}
-                      onChange={(e) => setFormPromptInput(e.target.value)}
-                      placeholder={
-                        formSectionType === "LISTENING"
-                          ? "https://example.com/audio.mp3"
-                          : "Masukkan topik atau tema..."
-                      }
-                      className="w-full bg-gray-55 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-                    />
-                  )}
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    disabled={isAiGenerating || !formPromptInput.trim()}
-                    onClick={handleGenerateAIQuestions}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-md shadow-blue-500/10 border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isAiGenerating ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>AI sedang membuat 5 soal...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-sm">smart_toy</span>
-                        <span>Buat Soal dengan AI</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* AI Generated Questions Preview */}
-                {aiGeneratedQuestions.length > 0 && (
-                  <div ref={previewRef} className="space-y-6 pt-6 border-t border-gray-150 dark:border-gray-800 text-left">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                      <h3 className="font-hanken font-bold text-gray-900 dark:text-white text-sm">
-                        Pratinjau Soal Hasil AI ({aiGeneratedQuestions.length} Soal)
-                      </h3>
-                      {generatedAudioUrl && (
-                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-200/50 dark:border-blue-900/30">
-                          <span className="material-symbols-outlined text-xs text-blue-600 dark:text-blue-400">audiotrack</span>
-                          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Audio TTS</span>
-                          <audio src={generatedAudioUrl} controls className="h-6 w-40 text-xs" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-                      {aiGeneratedQuestions.map((q, idx) => (
-                        <div key={idx} className="p-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl space-y-3">
-                          <p className="font-hanken text-xs font-bold text-gray-900 dark:text-white leading-relaxed">
-                            {idx + 1}. {q.questionText.includes("Read the passage") ? q.questionText.split("\n\n").pop() : q.questionText}
-                          </p>
-                          
-                          <div className="grid grid-cols-2 gap-2 text-[10px] pl-4">
-                            {q.options.map((opt: string) => {
-                              const isCorrect = opt === q.correctAnswer;
-                              return (
-                                <div key={opt} className={`p-2 rounded-lg border ${
-                                  isCorrect 
-                                    ? "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900/35 text-green-755 dark:text-green-400 font-bold" 
-                                    : "bg-white dark:bg-gray-855 border-gray-100 dark:border-gray-800 text-gray-500"
-                                }`}>
-                                  {opt}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <p className="text-[10px] text-gray-400 pl-4 italic">
-                            Penjelasan: {q.explanation}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-end gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setAiGeneratedQuestions([])}
-                        className="px-4 py-2.5 rounded-xl border border-gray-250 text-gray-500 hover:bg-gray-50 dark:border-gray-700 text-xs font-bold transition-all bg-white dark:bg-gray-850 cursor-pointer"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveAIQuestions}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10 border-0 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-sm">cloud_upload</span>
-                        <span>Simpan Semua Soal ke Database</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* ==================== MANUAL INPUT VIEW ==================== */
-              <form onSubmit={handleSaveQuestion} className="p-6 space-y-6 text-left">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Tipe Modul (Locked if fixedSection exists) */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">Tipe Modul</label>
-                    <select
-                      disabled={!!fixedSection}
-                      value={formSectionType}
-                      onChange={(e) => {
-                        setFormSectionType(e.target.value as "VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING");
-                      }}
-                      className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white disabled:opacity-50"
-                    >
-                      <option value="VOCABULARY">Vocabulary</option>
-                      <option value="GRAMMAR">Grammar</option>
-                      <option value="LISTENING">Listening</option>
-                      <option value="READING">Reading</option>
-                    </select>
-                  </div>
-
-                  {/* Difficulty */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">Tingkat Kesulitan</label>
-                    <select
-                      value={formDifficulty}
-                      onChange={(e) => setFormDifficulty(e.target.value)}
-                      className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-                    >
-                      <option value="EASY">Easy</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HARD">Hard</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Audio URL Input for Listening Section */}
-                {formSectionType === "LISTENING" && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                      Audio URL (File MP3)
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={formAudioUrl}
-                      onChange={(e) => setFormAudioUrl(e.target.value)}
-                      placeholder="https://example.com/audio.mp3"
-                      className="w-full bg-gray-55 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                )}
-
-                {/* Question Text */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                    Teks Soal / Pertanyaan
-                  </label>
-                  <textarea
-                    required
-                    value={formQuestionText}
-                    onChange={(e) => setFormQuestionText(e.target.value)}
-                    placeholder={formSectionType === "READING" ? 'Read the passage:\n"..."\n\nWhat is the main idea?' : "Masukkan pertanyaan..."}
-                    rows={formSectionType === "READING" ? 8 : 4}
-                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white resize-none leading-relaxed"
-                  />
-                  {formSectionType === "READING" && (
-                    <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 mt-1 block">
-                      * Catatan: Tulis teks bacaan di dalam tanda kutip ganda `&quot;&quot;` agar sistem otomatis memisahkannya ke kolom bacaan di sebelah kiri.
-                    </span>
-                  )}
-                </div>
-
-                {/* Choices/Options */}
-                <div className="space-y-4 pt-4 border-t border-gray-150 dark:border-gray-800">
-                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                    Opsi Pilihan Jawaban
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {formOptions.map((opt, i) => (
-                      <div key={i} className="space-y-2">
-                        <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block">
-                          Pilihan {String.fromCharCode(65 + i)}
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={opt}
-                          onChange={(e) => {
-                            const newOpts = [...formOptions];
-                            newOpts[i] = e.target.value;
-                            setFormOptions(newOpts);
-                          }}
-                          placeholder={`Opsi ${String.fromCharCode(65 + i)}`}
-                          className="w-full bg-gray-55 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Correct Answer Selector */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                    Kunci Jawaban yang Benar
-                  </label>
-                  <select
-                    required
-                    value={formCorrectAnswer}
-                    onChange={(e) => setFormCorrectAnswer(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-                  >
-                    <option value="">-- Pilih Kunci Jawaban --</option>
-                    {formOptions.map((opt, i) => (
-                      <option key={i} disabled={!opt.trim()} value={opt}>
-                        {opt.trim() ? `Opsi ${String.fromCharCode(65 + i)}: ${opt}` : `Opsi ${String.fromCharCode(65 + i)} (Masih Kosong)`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Explanation */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                    Penjelasan Kunci Jawaban (Opsional)
-                  </label>
-                  <textarea
-                    value={formExplanation}
-                    onChange={(e) => setFormExplanation(e.target.value)}
-                    placeholder="Tulis alasan kenapa kunci jawaban tersebut benar..."
-                    rows={3}
-                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white resize-none leading-relaxed"
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-150 dark:border-gray-800">
-                  <button
-                    type="button"
-                    onClick={() => setIsQuestionModalOpen(false)}
-                    className="px-5 py-2.5 rounded-xl border border-gray-255 text-gray-550 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 text-xs font-bold transition-all bg-white dark:bg-gray-850 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-755 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/10 border-0 cursor-pointer"
-                  >
-                    Simpan Soal
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+        <QuestionFormModal
+          isOpen={isQuestionModalOpen}
+          key={editingQuestion ? `edit-${editingQuestion.id}` : `add-${initialAudioUrl || 'new'}`}
+          onClose={() => setIsQuestionModalOpen(false)}
+          fixedSection={fixedSection}
+          editingQuestion={editingQuestion}
+          initialAudioUrl={initialAudioUrl}
+          initialDifficulty={initialDifficulty}
+          onSaveSuccess={() => {
+            setQuestionsPage(1);
+            setRefreshKey((prev) => prev + 1);
+          }}
+        />
       )}
     </div>
   );

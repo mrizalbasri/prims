@@ -18,6 +18,7 @@ export default function SpeakingTestRecorder({
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
@@ -37,9 +38,34 @@ export default function SpeakingTestRecorder({
     audioUrlRef.current = audioUrl;
   }, [text, audioUrl]);
 
+  useEffect(() => {
+    return () => {
+      // Clean up media stream and speech recognition on unmount
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error("Failed to stop speech recognition on unmount:", e);
+        }
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {
+          console.error("Failed to stop media recorder on unmount:", e);
+        }
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
 
 
   async function startRecording() {
+    setError(null);
     onChange("", null);
     isRecordingRef.current = true;
     isPausedRef.current = false;
@@ -78,13 +104,13 @@ export default function SpeakingTestRecorder({
           setIsPaused(false);
           isPausedRef.current = false;
           if (event.error === 'not-allowed') {
-            alert("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
+            setError("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
           } else if (event.error === 'no-speech') {
-            alert("Tidak ada suara yang terdeteksi. Silakan coba berbicara lebih dekat ke mikrofon atau berbicara lebih keras.");
+            setError("Tidak ada suara yang terdeteksi. Silakan coba berbicara lebih dekat ke mikrofon atau berbicara lebih keras.");
           } else if (event.error === 'audio-capture') {
-            alert("Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon Anda terhubung dengan benar dan aktif.");
+            setError("Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon Anda terhubung dengan benar dan aktif.");
           } else {
-            alert(`Gagal merekam suara: ${event.error}. Silakan coba lagi atau ketik jawaban langsung sebagai alternatif.`);
+            setError(`Gagal merekam suara: ${event.error}. Silakan coba lagi atau ketik jawaban langsung sebagai alternatif.`);
           }
         };
 
@@ -151,7 +177,7 @@ export default function SpeakingTestRecorder({
     } catch (err) {
       console.error("Failed to start MediaRecorder:", err);
       if (!recognitionRef.current) {
-        alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
+        setError("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
       }
       setIsRecording(false);
       isRecordingRef.current = false;
@@ -223,11 +249,28 @@ export default function SpeakingTestRecorder({
   return (
     <div className="pl-0 md:pl-12 space-y-6">
       <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-250 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
+        {error && (
+          <div className="w-full flex items-start gap-3 p-4 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300 text-xs font-medium leading-relaxed relative">
+            <span className="material-symbols-outlined text-red-500 text-lg select-none">warning</span>
+            <div className="flex-1 pr-6">{error}</div>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="absolute top-3.5 right-3.5 text-red-550 hover:text-red-700 dark:hover:text-red-200 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-center space-x-6">
           {/* Main button: Start Recording or Stop Recording */}
           <div className="relative">
             {isRecording && !isPaused && (
-              <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150"></div>
+              <>
+                <div className="absolute inset-0 bg-red-500/30 rounded-full animate-ping scale-150"></div>
+                <div className="absolute inset-0 bg-red-500/20 rounded-full animate-pulse scale-125"></div>
+              </>
             )}
             <button
               type="button"
@@ -235,9 +278,12 @@ export default function SpeakingTestRecorder({
               disabled={isUploadingAudio}
               className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 cursor-pointer ${
                 isRecording 
-                  ? "bg-red-600 text-white" 
+                  ? "bg-red-600 text-white animate-pulse" 
                   : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"
               }`}
+              style={{
+                boxShadow: isRecording && !isPaused ? "0 0 20px 4px rgba(239, 68, 68, 0.5)" : undefined
+              }}
             >
               <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isRecording ? "'FILL' 1" : undefined }}>
                 {isRecording ? "stop" : "mic"}
