@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Logo from "@/components/ui/Logo";
 
 interface AdminSidebarProps {
@@ -17,12 +18,21 @@ export default function AdminSidebar({
   adminName = "Admin PRISM",
   adminEmail = "admin@president.ac.id",
 }: AdminSidebarProps) {
-  const testItems = [
-    { id: "analytics", label: "Analytics & Hasil Tes", icon: "analytics" },
-    { id: "questions-vocab", label: "Placement: Vocabulary", icon: "menu_book" },
-    { id: "questions-grammar", label: "Placement: Grammar", icon: "rule" },
-    { id: "questions-listening", label: "Placement: Listening", icon: "headphones" },
-    { id: "questions-reading", label: "Placement: Reading", icon: "chrome_reader_mode" },
+  const [isPlacementOpen, setIsPlacementOpen] = useState(false);
+  const [prevActiveTab, setPrevActiveTab] = useState(activeTab);
+
+  if (activeTab !== prevActiveTab) {
+    setPrevActiveTab(activeTab);
+    if (activeTab.startsWith("questions-")) {
+      setIsPlacementOpen(true);
+    }
+  }
+
+  const questionsItems = [
+    { id: "questions-vocab", label: "Vocabulary", icon: "menu_book" },
+    { id: "questions-grammar", label: "Grammar", icon: "rule" },
+    { id: "questions-listening", label: "Listening", icon: "headphones" },
+    { id: "questions-reading", label: "Reading", icon: "chrome_reader_mode" },
   ];
 
   const studyItems = [
@@ -51,28 +61,71 @@ export default function AdminSidebar({
           {/* Section 1: Placement Test */}
           <div className="space-y-1">
             <div className="px-4 mb-2">
-              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest block">Placement Test</span>
+              <span className="text-[9px] font-bold text-gray-400 dark:text-gray-555 uppercase tracking-widest block">Placement Test</span>
               <div className="h-0.5 w-6 bg-blue-500 dark:bg-blue-400 rounded mt-1"></div>
             </div>
-            {testItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onTabChange?.(item.id)}
-                  className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer ${
-                    isActive 
-                      ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/10" 
-                      : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}>{item.icon}</span>
-                    <span className="text-xs font-semibold">{item.label}</span>
-                  </div>
-                </button>
-              );
-            })}
+
+            {/* Standalone Analytics Button */}
+            <button
+              onClick={() => onTabChange?.("analytics")}
+              className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer ${
+                activeTab === "analytics"
+                  ? "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/10"
+                  : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: activeTab === "analytics" ? "'FILL' 1" : "" }}>
+                  analytics
+                </span>
+                <span className="text-xs font-semibold">Analytics & Hasil Ujian</span>
+              </div>
+            </button>
+
+            {/* Collapsible Accordion Header */}
+            <button
+              onClick={() => setIsPlacementOpen(!isPlacementOpen)}
+              className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center justify-between transition-all border-0 cursor-pointer text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                activeTab.startsWith("questions-") ? "font-semibold text-blue-600 dark:text-blue-405" : ""
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-lg">
+                  folder_open
+                </span>
+                <span className="text-xs font-semibold">Bank Soal Ujian</span>
+              </div>
+              <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isPlacementOpen ? "rotate-180" : ""}`}>
+                expand_more
+              </span>
+            </button>
+
+            {/* Accordion Items */}
+            <div className={`overflow-hidden transition-all duration-305 ease-in-out pl-4 space-y-1 ${
+              isPlacementOpen ? "max-h-48 opacity-100 mt-1" : "max-h-0 opacity-0 pointer-events-none"
+            }`}>
+              {questionsItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onTabChange?.(item.id)}
+                    className={`w-full text-left px-4 py-2 rounded-lg flex items-center justify-between transition-all border-0 cursor-pointer ${
+                      isActive 
+                        ? "bg-blue-50 dark:bg-blue-900/25 text-blue-600 dark:text-blue-405 font-semibold border-l-2 border-blue-600 dark:border-blue-405 rounded-l-none" 
+                        : "bg-transparent text-gray-550 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}>
+                        {item.icon}
+                      </span>
+                      <span className="text-[11px] font-medium">{item.label}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Divider */}

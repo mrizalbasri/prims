@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { VocabularyCategory, QuestionDifficulty } from '@prisma/client';
+import { VocabularyCategory, QuestionDifficulty, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '15');
     const skip = (page - 1) * limit;
 
-    const filter: any = { isActive: true };
+    const filter: Prisma.VocabularyCardWhereInput = { isActive: true };
 
     if (category && Object.values(VocabularyCategory).includes(category as VocabularyCategory)) {
       filter.category = category as VocabularyCategory;

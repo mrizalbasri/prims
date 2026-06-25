@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { VocabularySession } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { getVocabularyStats } from '@/lib/vocabulary';
@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         stats,
-        recentSessions: recentSessions.map((s: any) => ({
+        recentSessions: recentSessions.map((s: VocabularySession) => ({
           id: s.id,
           cardsReviewed: s.cardsReviewed,
           cardsLearned: s.cardsLearned,

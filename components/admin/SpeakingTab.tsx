@@ -10,7 +10,7 @@ type SpeakingScenarioRow = {
   description: string;
   promptText: string | null;
   prompts: string[];
-  rubric: any;
+  rubric: unknown;
 };
 
 export default function SpeakingTab() {

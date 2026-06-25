@@ -38,20 +38,24 @@ export default function FaqAccordion() {
   };
 
   return (
-    <div className="space-y-4 max-w-3xl mx-auto">
+    <div className="space-y-4 max-w-3xl mx-auto text-left">
       {FAQS.map((faq, idx) => {
         const isOpen = activeIndex === idx;
         return (
           <div
             key={idx}
-            className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-150 dark:border-gray-700 overflow-hidden transition-all duration-300 hover:shadow-md"
+            className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden ${
+              isOpen 
+                ? "border-blue-500/20 shadow-lg shadow-blue-500/5" 
+                : "border-gray-200/80 hover:border-blue-500/30 hover:shadow-md"
+            }`}
           >
             <button
               onClick={() => toggleIndex(idx)}
-              className="w-full text-left p-5 flex items-center justify-between gap-4 font-hanken font-bold text-gray-900 dark:text-white hover:text-blue-600 transition-colors focus:outline-none cursor-pointer"
+              className="w-full text-left p-6 flex items-center justify-between gap-4 font-hanken font-bold text-gray-900 hover:text-blue-600 transition-colors focus:outline-none cursor-pointer"
             >
-              <span>{faq.question}</span>
-              <span className={`material-symbols-outlined text-gray-400 transform transition-transform duration-300 ${
+              <span className="text-sm md:text-base">{faq.question}</span>
+              <span className={`material-symbols-outlined text-gray-400 transform transition-all duration-300 flex-shrink-0 ${
                 isOpen ? "rotate-180 text-blue-600" : ""
               }`}>
                 expand_more
@@ -59,11 +63,13 @@ export default function FaqAccordion() {
             </button>
             
             <div
-              className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                isOpen ? "max-h-60 opacity-100 border-t border-gray-100 dark:border-gray-700" : "max-h-0 opacity-0"
+              className={`transition-all duration-350 ease-in-out overflow-hidden ${
+                isOpen 
+                  ? "max-h-72 opacity-100 border-t border-gray-100" 
+                  : "max-h-0 opacity-0"
               }`}
             >
-              <div className="p-5 font-inter text-sm text-gray-600 dark:text-gray-300 leading-relaxed bg-gray-50/50 dark:bg-gray-900/10">
+              <div className="p-6 font-inter text-xs md:text-sm text-gray-500 leading-relaxed bg-gray-50/50">
                 {faq.answer}
               </div>
             </div>

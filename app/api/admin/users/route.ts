@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
-import { UserRole } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,13 +13,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
-    const roleParam = searchParams.get('role');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '15');
     const skip = (page - 1) * limit;
 
     // Build filters (Force role: STUDENT to only show student accounts)
-    const where: any = { role: 'STUDENT' };
+    const where: Prisma.UserWhereInput = { role: 'STUDENT' };
     
     if (search) {
       where.OR = [

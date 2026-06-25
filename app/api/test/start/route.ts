@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
-import { TIME_LIMITS, SECTION_WEIGHTS } from '@/lib/scoring';
 import { getRandomQuestions, getRandomPrompt } from '@/lib/questions';
 import { getTestSettings } from '@/lib/settings';
 
@@ -59,7 +58,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (inProgressAttempts.length > 1) {
-        const keepAttemptId = inProgressAttempts[0].id;
         const deleteIds = inProgressAttempts.slice(1).map((a) => a.id);
         await prisma.testAttempt.deleteMany({
           where: {
@@ -68,8 +66,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Check if user already has an active or completed attempt
-      const existingAttempt = await prisma.testAttempt.findFirst({
+      // Check if user already has an active (non-completed) attempt
+      const activeAttempt = await prisma.testAttempt.findFirst({
         where: {
           userId: user.id,
           status: {
@@ -77,7 +75,6 @@ export async function POST(request: NextRequest) {
               TestAttemptStatus.IN_PROGRESS,
               TestAttemptStatus.SUBMITTED,
               TestAttemptStatus.PROCESSING,
-              TestAttemptStatus.COMPLETED,
             ],
           },
         },
@@ -85,25 +82,24 @@ export async function POST(request: NextRequest) {
         orderBy: { createdAt: 'desc' },
       });
 
-      // If already completed/processing, block
+      // If already submitted/processing, block
       if (
-        existingAttempt &&
-        (existingAttempt.status === TestAttemptStatus.COMPLETED ||
-          existingAttempt.status === TestAttemptStatus.SUBMITTED ||
-          existingAttempt.status === TestAttemptStatus.PROCESSING)
+        activeAttempt &&
+        (activeAttempt.status === TestAttemptStatus.SUBMITTED ||
+          activeAttempt.status === TestAttemptStatus.PROCESSING)
       ) {
         return NextResponse.json(
-          { error: 'You have already completed a placement test', code: 'ALREADY_COMPLETED' },
+          { error: 'Ujian sebelumnya sedang diproses, silakan tunggu beberapa saat.', code: 'PROCESSING' },
           { status: 409 }
         );
       }
 
       // If IN_PROGRESS and already has sections with feedback, allow continuation
-      if (existingAttempt && existingAttempt.status === TestAttemptStatus.IN_PROGRESS) {
-        const hasQuestions = existingAttempt.sectionAttempts.some((s) => s.feedback);
+      if (activeAttempt && activeAttempt.status === TestAttemptStatus.IN_PROGRESS) {
+        const hasQuestions = activeAttempt.sectionAttempts.some((s) => s.feedback);
         if (hasQuestions) {
           return NextResponse.json(
-            { message: 'Continuing existing test', testAttemptId: existingAttempt.id },
+            { message: 'Continuing existing test', testAttemptId: activeAttempt.id },
             { status: 200 }
           );
         }
@@ -112,9 +108,24 @@ export async function POST(request: NextRequest) {
     // Create or reuse test attempt
     let testAttemptId: string;
 
-    if (existingAttempt) {
-      testAttemptId = existingAttempt.id;
+    if (activeAttempt) {
+      testAttemptId = activeAttempt.id;
     } else {
+      // Check if student has completed attempts
+      const hasCompletedAttempt = await prisma.testAttempt.findFirst({
+        where: {
+          userId: user.id,
+          status: TestAttemptStatus.COMPLETED,
+        },
+      });
+
+      if (hasCompletedAttempt && !user.allowRetake) {
+        return NextResponse.json(
+          { error: 'Anda tidak memiliki izin untuk mengulang ujian. Silakan hubungi administrator.' },
+          { status: 403 }
+        );
+      }
+
       const newAttempt = await prisma.testAttempt.create({
         data: {
           userId: user.id,
@@ -123,6 +134,14 @@ export async function POST(request: NextRequest) {
         },
       });
       testAttemptId = newAttempt.id;
+
+      // Consume the allowRetake permission
+      if (user.allowRetake) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { allowRetake: false },
+        });
+      }
 
       // Create section attempts (no timeLimitSec — not in schema)
       for (const sectionType of SECTION_ORDER) {
@@ -212,7 +231,7 @@ export async function POST(request: NextRequest) {
         feedbackJson = {
           questions: selectedQuestions.map((q, idx) => {
             // Get database question ID or fallback
-            const dbId = 'id' in q ? (q as any).id : `static_${idx}`;
+            const dbId = 'id' in q ? (q as { id: string }).id : `static_${idx}`;
             // Ensure ID starts with sectionType (e.g. VOCABULARY_cju...) to pass the startsWith check in save/route.ts
             const questionId = dbId.startsWith(sectionAttempt.sectionType)
               ? dbId
@@ -230,7 +249,7 @@ export async function POST(request: NextRequest) {
       } else {
         // WRITING or SPEAKING
         let promptText = 'Respond to the prompt.';
-        let rubricJson: any = null;
+        let rubricJson: Prisma.InputJsonValue = null;
 
         if (sectionAttempt.sectionType === SectionType.WRITING) {
           const dbPrompts = await prisma.writingPrompt.findMany({

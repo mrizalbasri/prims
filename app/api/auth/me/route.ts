@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
           major: user.major,
           cohort: user.cohort,
           hasModuleAccess: user.hasModuleAccess,
+          allowRetake: user.allowRetake,
         },
       },
       { status: 200 }

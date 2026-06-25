@@ -1,8 +1,18 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+
+type StudentWithAttempts = Prisma.UserGetPayload<{
+  include: {
+    testAttempts: {
+      include: {
+        finalResult: true;
+      };
+    };
+  };
+}>;
 
 
 
@@ -23,7 +33,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Build filter conditions
-    const userFilter: any = { role: 'STUDENT' };
+    const userFilter: Prisma.UserWhereInput = { role: 'STUDENT' };
     if (cohort) userFilter.cohort = cohort;
     if (major) userFilter.major = major;
     if (search) {
@@ -56,7 +66,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format results with their test status
-    const results = students.map((stud: any) => {
+    const results = students.map((stud: StudentWithAttempts) => {
       const attempt = stud.testAttempts?.[0] || null;
       const rawScores = attempt?.finalResult?.sectionScores
         ? (typeof attempt.finalResult.sectionScores === 'string'
@@ -173,8 +183,8 @@ export async function GET(request: NextRequest) {
           totalPages: Math.ceil(filteredCount / limit),
         },
         filters: {
-          cohorts: cohorts.map((c: any) => c.cohort).filter(Boolean),
-          majors: majors.map((m: any) => m.major).filter(Boolean),
+          cohorts: cohorts.map((c: { cohort: string | null }) => c.cohort).filter(Boolean),
+          majors: majors.map((m: { major: string | null }) => m.major).filter(Boolean),
         },
       },
       { status: 200 }

@@ -17,7 +17,7 @@ export default function LandingHeader({ user }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+    <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-150 py-4 px-6">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
         <div className="flex items-center">
           <Logo className="h-11 w-36" priority />
@@ -25,30 +25,20 @@ export default function LandingHeader({ user }: LandingHeaderProps) {
         
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8">
-          <a
-            href="#placement-test"
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
-          >
-            Placement Test
-          </a>
-          <a
-            href="#ai-learning"
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
-          >
-            AI Learning
-          </a>
-          <a
-            href="#demo-section"
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
-          >
-            Coba Demo
-          </a>
-          <a
-            href="#faq"
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
-          >
-            FAQ
-          </a>
+          {[
+            { name: "Placement Test", href: "#placement-test" },
+            { name: "AI Learning", href: "#ai-learning" },
+            { name: "Coba Demo", href: "#demo-section" },
+            { name: "FAQ", href: "#faq" }
+          ].map((link, idx) => (
+            <a
+              key={idx}
+              href={link.href}
+              className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors duration-200 cursor-pointer"
+            >
+              {link.name}
+            </a>
+          ))}
         </div>
 
         {/* Auth CTA */}
@@ -56,21 +46,21 @@ export default function LandingHeader({ user }: LandingHeaderProps) {
           {user ? (
             <Link
               href={user.role === "ADMIN" ? "/admin/dashboard" : "/student"}
-              className="bg-primary hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-hanken text-sm font-semibold px-6 py-2.5 rounded-lg hover:shadow-lg transition-all cursor-pointer"
+              className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl transition-all duration-200 cursor-pointer"
             >
               Dashboard
             </Link>
           ) : (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <Link
                 href="/login"
-                className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
+                className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors duration-200 cursor-pointer"
               >
                 Masuk
               </Link>
               <Link
                 href="/register"
-                className="bg-primary hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-hanken text-sm font-semibold px-6 py-2.5 rounded-lg hover:shadow-lg transition-all cursor-pointer"
+                className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl transition-all duration-200 cursor-pointer"
               >
                 Mulai Sekarang
               </Link>
@@ -82,7 +72,7 @@ export default function LandingHeader({ user }: LandingHeaderProps) {
         <div className="md:hidden flex items-center">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
+            className="text-gray-600 focus:outline-none cursor-pointer"
           >
             <span className="material-symbols-outlined text-2xl">
               {mobileMenuOpen ? "close" : "menu"}
@@ -93,42 +83,42 @@ export default function LandingHeader({ user }: LandingHeaderProps) {
 
       {/* Mobile Links Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-4 animate-fadeIn">
+        <div className="md:hidden mt-4 pt-4 border-t border-gray-100 flex flex-col gap-4 animate-fadeIn">
           <a
             href="#placement-test"
             onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
+            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
           >
             Placement Test
           </a>
           <a
             href="#ai-learning"
             onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
+            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
           >
             AI Learning
           </a>
           <a
             href="#demo-section"
             onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
+            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
           >
             Coba Demo
           </a>
           <a
             href="#faq"
             onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 transition-colors"
+            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
           >
             FAQ
           </a>
           
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-3">
+          <div className="pt-4 border-t border-gray-100 flex flex-col gap-3">
             {user ? (
               <Link
                 href={user.role === "ADMIN" ? "/admin/dashboard" : "/student"}
                 onClick={() => setMobileMenuOpen(false)}
-                className="bg-primary hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-hanken text-sm font-bold py-3 rounded-lg text-center cursor-pointer"
+                className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold py-3 rounded-xl text-center cursor-pointer transition-all duration-200"
               >
                 Dashboard
               </Link>
@@ -137,14 +127,14 @@ export default function LandingHeader({ user }: LandingHeaderProps) {
                 <Link
                   href="/login"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="font-inter text-sm font-bold text-gray-700 dark:text-gray-300 py-2 hover:text-blue-600 text-center cursor-pointer"
+                  className="font-inter text-sm font-bold text-gray-700 py-2 hover:text-blue-600 text-center cursor-pointer transition-all duration-200"
                 >
                   Masuk
                 </Link>
                 <Link
                   href="/register"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="bg-primary hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-hanken text-sm font-bold py-3 rounded-lg text-center cursor-pointer"
+                  className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold py-3 rounded-xl text-center cursor-pointer transition-all duration-200"
                 >
                   Mulai Sekarang
                 </Link>

@@ -170,8 +170,8 @@ export async function scoreObjectiveAnswer(
   }
 
   const feedbackJson = JSON.parse(sectionAttempt.feedback);
-  const questions = feedbackJson.questions || [];
-  const question = questions.find((q: any) => q.id === questionId);
+  const questions = (feedbackJson.questions || []) as { id: string; correctAnswer: string }[];
+  const question = questions.find((q) => q.id === questionId);
 
   if (!question) {
     throw new Error(`Question ${questionId} not found in section attempt`);
@@ -183,7 +183,7 @@ export async function scoreObjectiveAnswer(
   return { isCorrect, score };
 }
 
-function parseAiJson(text: string): { score: number; feedback: any } {
+function parseAiJson(text: string): { score: number; feedback: Record<string, unknown> } {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error("Failed to parse AI response");
@@ -213,7 +213,7 @@ async function runGeminiScoringWithFallback(
   preferredModel: string,
   fallbackModel = "gemini-2.5-flash",
   audioData?: { data: string; mimeType: string },
-): Promise<{ score: number; feedback: any }> {
+): Promise<{ score: number; feedback: Record<string, unknown> }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is missing");
@@ -232,7 +232,7 @@ async function runGeminiScoringWithFallback(
       model: preferredModel,
       generationConfig,
     });
-    const parts: any[] = [];
+    const parts: (string | { inlineData: { data: string; mimeType: string } })[] = [];
     if (audioData) {
       parts.push({
         inlineData: audioData,
@@ -255,7 +255,7 @@ async function runGeminiScoringWithFallback(
       model: fallbackModel,
       generationConfig,
     });
-    const parts: any[] = [];
+    const parts: (string | { inlineData: { data: string; mimeType: string } })[] = [];
     if (audioData) {
       parts.push({
         inlineData: audioData,
@@ -281,7 +281,7 @@ async function runGeminiScoringWithFallback(
 async function runMiniMaxScoring(
   scoringPrompt: string,
   modelName: string,
-): Promise<{ score: number; feedback: any }> {
+): Promise<{ score: number; feedback: Record<string, unknown> }> {
   const apiKey = process.env.MINIMAX_API_KEY;
   if (!apiKey) {
     throw new Error("MINIMAX_API_KEY is missing");
@@ -319,8 +319,8 @@ async function runMiniMaxScoring(
 export async function scoreWritingWithAI(
   responseText: string,
   promptText: string,
-  rubric?: any,
-): Promise<{ score: number; feedback: any }> {
+  rubric?: unknown,
+): Promise<{ score: number; feedback: Record<string, unknown> }> {
   const scoringPrompt = `
 You are an English language assessment expert. Score the following student writing response.
 
@@ -402,9 +402,9 @@ Return your response in JSON format:
 export async function scoreSpeakingWithAI(
   transcriptText: string,
   promptText: string,
-  rubric?: any,
+  rubric?: unknown,
   audioUrl?: string,
-): Promise<{ score: number; feedback: any }> {
+): Promise<{ score: number; feedback: Record<string, unknown> }> {
   let audioData: { data: string; mimeType: string } | undefined = undefined;
 
   if (audioUrl) {

@@ -1,19 +1,20 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import Image from "next/image";
 import { getCurrentUser } from "@/lib/auth";
 import LandingHeader from "@/components/landing/LandingHeader";
 import Logo from "@/components/ui/Logo";
 import HeroSection from "@/components/landing/HeroSection";
 import InteractiveDemo from "@/components/landing/InteractiveDemo";
 import FaqAccordion from "@/components/landing/FaqAccordion";
+import PlacementTestPreview from "@/components/landing/PlacementTestPreview";
+import ScrollReveal from "@/components/landing/ScrollReveal";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 overflow-x-hidden font-inter">
+    <div className="flex flex-col min-h-screen bg-gray-50 text-gray-900 overflow-x-hidden font-inter">
       {/* Navigation */}
       <LandingHeader user={user} />
 
@@ -21,35 +22,42 @@ export default async function HomePage() {
       <HeroSection user={user} />
 
       {/* University Partner Banner */}
-      <section className="py-10 border-y border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-center gap-6 text-center md:text-left">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-3xl text-blue-600">school</span>
-            <span className="font-hanken font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest text-sm">
-              Official Partner
-            </span>
+      <section className="py-12 bg-gray-55/30 relative">
+        <ScrollReveal className="max-w-7xl mx-auto px-6">
+          <div className="bg-white border border-gray-200/60 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 text-center md:text-left hover:shadow-md transition-shadow duration-300">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
+                <span className="material-symbols-outlined text-2xl">school</span>
+              </div>
+              <span className="font-hanken font-bold text-gray-400 uppercase tracking-widest text-xs">
+                Official Partner
+              </span>
+            </div>
+            <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
+            <p className="font-hanken font-extrabold text-xl text-[#173454] tracking-tight">
+              President University Pekanbaru
+            </p>
           </div>
-          <div className="h-4 w-px bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
-          <p className="font-hanken font-bold text-lg text-primary dark:text-blue-400 tracking-tight">
-            President University Pekanbaru
-          </p>
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* Placement Test Showcase Section */}
-      <section id="placement-test" className="py-24 max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <section id="placement-test" className="py-24 max-w-7xl mx-auto px-6 relative overflow-hidden">
+        {/* Subtle decorative glow */}
+        <div className="absolute right-0 top-1/4 w-96 h-96 bg-teal-100/20 rounded-full blur-3xl -z-10"></div>
+        
+        <ScrollReveal className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3.5 py-1.5 rounded-full border border-blue-200/50 dark:border-blue-800/30">
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-3.5 py-1.5 rounded-full border border-blue-100">
               <span className="material-symbols-outlined text-sm">psychology</span>
               <span className="font-hanken text-xs font-bold uppercase tracking-wider">Smart Assessment</span>
             </div>
             
-            <h2 className="font-hanken text-4xl md:text-5xl font-extrabold text-primary dark:text-white leading-tight">
+            <h2 className="font-hanken text-4xl md:text-5xl font-extrabold text-[#173454] leading-tight">
               Adaptive Placement Test
             </h2>
             
-            <p className="text-gray-500 dark:text-gray-400 leading-relaxed font-inter">
+            <p className="text-gray-500 leading-relaxed font-inter text-sm md:text-base">
               Evaluasi komprehensif kemampuan bahasa Inggris mahasiswa baru. Platform kami menyesuaikan tingkat kesulitan soal berdasarkan respon Anda, memberikan hasil yang lebih akurat dalam waktu pengerjaan yang efisien.
             </p>
 
@@ -60,14 +68,14 @@ export default async function HomePage() {
                 { title: "Instant Results & CEFR Mapping", desc: "Dapatkan skor penempatan resmi (Beginner, Intermediate, Advanced) dan sertifikasi CEFR secara instan.", icon: "bolt" }
               ].map((item, idx) => (
                 <li key={idx} className="flex gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center flex-shrink-0 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900">
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-600 border border-blue-100">
                     <span className="material-symbols-outlined text-xl">{item.icon}</span>
                   </div>
                   <div>
-                    <h4 className="font-hanken text-base font-bold text-gray-900 dark:text-white mb-0.5">
+                    <h4 className="font-hanken text-base font-bold text-gray-900 mb-0.5">
                       {item.title}
                     </h4>
-                    <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                    <p className="font-inter text-sm text-gray-500 leading-relaxed">
                       {item.desc}
                     </p>
                   </div>
@@ -76,71 +84,30 @@ export default async function HomePage() {
             </ul>
           </div>
 
-          {/* Interactive Ujian Card Preview */}
-          <div className="relative">
-            <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/10 to-teal-500/10 rounded-3xl -z-10 transform -rotate-1"></div>
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 border border-gray-150 dark:border-gray-700 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-teal-500"></div>
-              <div className="flex justify-between items-center mb-8">
-                <span className="font-hanken font-bold text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-lg">
-                  Vocabulary Section
-                </span>
-                <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm">timer</span>
-                  Question 5 of 20
-                </span>
-              </div>
-              <h3 className="font-hanken text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-8 leading-relaxed">
-                Choose the correct synonym for "abundant".
-              </h3>
-              <div className="space-y-3">
-                {[
-                  { key: "A", val: "Scarce", selected: false },
-                  { key: "B", val: "Plentiful", selected: true },
-                  { key: "C", val: "Minimal", selected: false }
-                ].map((opt, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                      opt.selected
-                        ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10"
-                        : "border-gray-100 dark:border-gray-700 hover:border-teal-500/50 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    }`}
-                  >
-                    <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center ${
-                      opt.selected
-                        ? "border-teal-500 bg-teal-500 text-white"
-                        : "border-gray-300 dark:border-gray-600"
-                    }`}>
-                      {opt.selected && <span className="material-symbols-outlined text-xs">check</span>}
-                    </div>
-                    <span className={`font-inter text-sm font-semibold ${
-                      opt.selected ? "text-teal-600 dark:text-teal-400" : "text-gray-700 dark:text-gray-300"
-                    }`}>
-                      {opt.val}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* Interactive Placement Test Preview Component */}
+          <div>
+            <PlacementTestPreview />
           </div>
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* AI-Driven Learning Section */}
-      <section id="ai-learning" className="py-24 bg-white dark:bg-gray-900 border-y border-gray-100 dark:border-gray-800">
+      <section id="ai-learning" className="py-24 bg-white border-y border-gray-150 relative">
+        {/* Subtle decorative glow */}
+        <div className="absolute left-10 bottom-10 w-96 h-96 bg-blue-100/10 rounded-full blur-3xl -z-10"></div>
+        
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
-            <span className="inline-flex py-1 px-3 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 font-hanken text-xs font-bold uppercase tracking-wider border border-teal-200/50 dark:border-teal-800/30">
+          <ScrollReveal className="text-center max-w-3xl mx-auto mb-20 space-y-4">
+            <span className="inline-flex py-1 px-3 rounded-full bg-teal-50 text-teal-600 font-hanken text-xs font-bold uppercase tracking-wider border border-teal-100">
               Continuous Improvement
             </span>
-            <h2 className="font-hanken text-4xl md:text-5xl font-extrabold text-primary dark:text-white leading-tight">
+            <h2 className="font-hanken text-4xl md:text-5xl font-extrabold text-[#173454] leading-tight">
               AI-Driven Learning Modules
             </h2>
-            <p className="text-gray-500 dark:text-gray-400 leading-relaxed font-inter">
+            <p className="text-gray-500 leading-relaxed font-inter text-sm md:text-base">
               Setelah tes penempatan selesai, Anda mendapatkan akses penuh ke kurikulum modul pembelajaran mandiri yang dirancang oleh AI sesuai tingkat kelemahan Anda.
             </p>
-          </div>
+          </ScrollReveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
@@ -163,24 +130,25 @@ export default async function HomePage() {
                 theme: "red"
               }
             ].map((card, idx) => (
-              <div
+              <ScrollReveal
                 key={idx}
-                className="bg-gray-50 dark:bg-gray-850 p-8 rounded-2xl border border-gray-100 dark:border-gray-800 hover:shadow-xl hover:-translate-y-1 transition-all group cursor-pointer"
+                delayMs={idx * 150} // Staggered scroll-reveal animation
+                className="bg-gray-50 p-8 rounded-2xl border border-gray-200/60 hover:border-blue-500/30 hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer"
               >
-                <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-colors ${
-                  card.theme === "blue" ? "bg-blue-500/10 text-blue-600" :
-                  card.theme === "orange" ? "bg-orange-500/10 text-orange-600" :
-                  "bg-red-500/10 text-red-600"
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 border transition-all duration-300 ${
+                  card.theme === "blue" ? "bg-blue-50 text-blue-600 border-blue-100 group-hover:bg-blue-600 group-hover:text-white" :
+                  card.theme === "orange" ? "bg-orange-50 text-orange-600 border-orange-100 group-hover:bg-orange-600 group-hover:text-white" :
+                  "bg-red-50 text-red-600 border-red-100 group-hover:bg-red-600 group-hover:text-white"
                 }`}>
                   <span className="material-symbols-outlined text-3xl">{card.icon}</span>
                 </div>
-                <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white mb-3 group-hover:text-blue-600 transition-colors">
+                <h3 className="font-hanken text-lg font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
                   {card.title}
                 </h3>
-                <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                <p className="font-inter text-sm text-gray-500 leading-relaxed">
                   {card.desc}
                 </p>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </div>
@@ -188,24 +156,27 @@ export default async function HomePage() {
 
       {/* Demo Section */}
       <section id="demo-section" className="py-24 max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
+        <ScrollReveal className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
           <div className="lg:col-span-5 space-y-8">
-            <span className="inline-flex items-center gap-2 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-3.5 py-1.5 rounded-full border border-orange-200/50 dark:border-orange-800/30">
+            <span className="inline-flex items-center gap-2 bg-orange-50 text-orange-600 px-3.5 py-1.5 rounded-full border border-orange-100">
               <span className="material-symbols-outlined text-sm">science</span>
               <span className="font-hanken text-xs font-bold uppercase tracking-wider">Coba Demo</span>
             </span>
             
-            <h2 className="font-hanken text-4xl md:text-5xl font-extrabold text-primary dark:text-white leading-tight animate-fadeIn">
+            <h2 className="font-hanken text-4xl md:text-5xl font-extrabold text-[#173454] leading-tight">
               Rasakan Kemudahan Umpan Balik AI
             </h2>
             
-            <p className="text-gray-500 dark:text-gray-400 leading-relaxed font-inter">
+            <p className="text-gray-500 leading-relaxed font-inter text-sm md:text-base">
               Coba asisten tata bahasa menulis kami di panel sebelah kanan. Ketik kalimat Anda atau pilih contoh kalimat salah yang telah disediakan untuk melihat koreksi tata bahasa kontekstual dari AI secara instan.
             </p>
 
-            <div className="p-4 rounded-xl border border-gray-150 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 space-y-2 text-xs">
-              <p className="font-hanken font-bold text-gray-700 dark:text-gray-200">💡 Fitur Writing Assistant PRISM:</p>
-              <ul className="list-disc list-inside space-y-1 text-gray-500 dark:text-gray-400 leading-relaxed">
+            <div className="p-5 rounded-2xl border border-gray-150 bg-white/50 space-y-3 text-xs shadow-sm">
+              <p className="font-hanken font-bold text-gray-800 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm text-blue-500">lightbulb</span>
+                Fitur Writing Assistant PRISM:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 text-gray-500 leading-relaxed">
                 <li>Umpan balik tata bahasa kontekstual</li>
                 <li>Penjelasan terperinci dalam Bahasa Indonesia</li>
                 <li>Kalkulasi nilai otomatis per paragraf</li>
@@ -216,32 +187,32 @@ export default async function HomePage() {
           <div className="lg:col-span-7 w-full">
             <InteractiveDemo />
           </div>
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="py-24 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-855">
-        <div className="max-w-7xl mx-auto px-6">
+      <section id="faq" className="py-24 bg-white border-t border-gray-150">
+        <ScrollReveal className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
-            <span className="font-hanken text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
+            <span className="font-hanken text-xs font-bold text-blue-600 uppercase tracking-widest">
               Pertanyaan Umum
             </span>
-            <h2 className="font-hanken text-3xl md:text-4xl font-extrabold text-primary dark:text-white">
+            <h2 className="font-hanken text-3xl md:text-4xl font-extrabold text-[#173454]">
               Ada Pertanyaan Tentang PRISM?
             </h2>
-            <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
+            <p className="font-inter text-sm text-gray-500">
               Jawaban atas pertanyaan-pertanyaan yang paling sering ditanyakan oleh mahasiswa baru dan admin kampus.
             </p>
           </div>
 
           <FaqAccordion />
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* Final Call to Action */}
       <section className="py-24 bg-gradient-to-br from-primary to-blue-900 text-white relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
-        <div className="max-w-4xl mx-auto text-center px-6 relative z-10 space-y-8">
+        <ScrollReveal className="max-w-4xl mx-auto text-center px-6 relative z-10 space-y-8">
           <h2 className="font-hanken text-4xl md:text-5xl font-extrabold leading-tight">
             Siap Memulai Evaluasi Bahasa Inggris Anda?
           </h2>
@@ -262,7 +233,7 @@ export default async function HomePage() {
               Masuk Dashboard
             </Link>
           </div>
-        </div>
+        </ScrollReveal>
       </section>
 
       {/* Footer */}
@@ -293,7 +264,7 @@ export default async function HomePage() {
                 President University Pekanbaru<br />
                 Riau, Indonesia
               </p>
-              <div className="text-xs text-gray-500 pt-2">
+              <div className="text-xs text-gray-550 pt-2">
                 © 2026 PRISM. All rights reserved.
               </div>
             </div>

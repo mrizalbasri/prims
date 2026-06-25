@@ -21,6 +21,7 @@ type BottomNavBarProps = {
   speakingAudioUrl: string | null;
   sectionLabels: Record<string, string>;
   onQuestionClick: (idx: number) => void;
+  isUploadingAudio?: boolean;
 };
 
 export default function BottomNavBar({
@@ -31,6 +32,7 @@ export default function BottomNavBar({
   speakingAudioUrl,
   sectionLabels,
   onQuestionClick,
+  isUploadingAudio = false,
 }: BottomNavBarProps) {
   const isQuestionAnswered = useCallback((q: Question) => {
     if (currentSection.section === "writing") {
@@ -81,13 +83,16 @@ export default function BottomNavBar({
             return (
               <button
                 key={q.id}
-                onClick={() => onQuestionClick(idx)}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs transition-all cursor-pointer border flex-shrink-0 ${
-                  answered
-                    ? "bg-teal-600 border-teal-700 text-white shadow-sm hover:bg-teal-750 hover:scale-105"
-                    : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-450 hover:border-teal-500 hover:text-teal-600"
+                disabled={isUploadingAudio}
+                onClick={() => !isUploadingAudio && onQuestionClick(idx)}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs transition-all border flex-shrink-0 ${
+                  isUploadingAudio
+                    ? "opacity-40 cursor-not-allowed border-gray-100 dark:border-gray-850 text-gray-400"
+                    : answered
+                      ? "bg-teal-600 border-teal-700 text-white shadow-sm hover:bg-teal-750 hover:scale-105 cursor-pointer"
+                      : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-450 hover:border-teal-500 hover:text-teal-600 cursor-pointer"
                 }`}
-                title={`Lompat ke soal ${idx + 1}`}
+                title={isUploadingAudio ? "Sedang mengunggah audio..." : `Lompat ke soal ${idx + 1}`}
               >
                 {idx + 1}
               </button>

@@ -17,6 +17,7 @@ type User = {
   cohort: string;
   major: string;
   hasModuleAccess: boolean;
+  allowRetake: boolean;
 };
 
 type Result = {
@@ -42,6 +43,7 @@ export default function StudentDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [tokenInput, setTokenInput] = useState("");
+  const [isStartingRetake, setIsStartingRetake] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [learningStats, setLearningStats] = useState({
@@ -99,6 +101,29 @@ export default function StudentDashboardPage() {
     router.push("/login");
   }
 
+  async function handleRetakeTest() {
+    const confirmRetake = window.confirm(
+      "Apakah Anda yakin ingin mengulang Placement Test? Hasil tes Anda sebelumnya akan diarsipkan dan Anda dapat mengukur perkembangan kemampuan Anda melalui tes baru ini."
+    );
+    if (!confirmRetake) return;
+
+    setIsStartingRetake(true);
+    try {
+      const res = await fetch("/api/test/start", { method: "POST" });
+      if (res.ok) {
+        router.push("/student/test");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Gagal memulai tes baru.");
+        setIsStartingRetake(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Terjadi kesalahan koneksi saat memulai tes.");
+      setIsStartingRetake(false);
+    }
+  }
+
   async function handleVerifyToken(e: React.FormEvent) {
     e.preventDefault();
     setTokenError(null);
@@ -121,7 +146,7 @@ export default function StudentDashboardPage() {
           setUser({ ...user, hasModuleAccess: true });
         }
       }
-    } catch (err) {
+    } catch {
       setTokenError("Terjadi kesalahan sistem");
     } finally {
       setIsVerifying(false);
@@ -225,14 +250,26 @@ export default function StudentDashboardPage() {
                 </p>
               </div>
 
-              <div>
+              <div className="flex flex-wrap items-center gap-4">
                 <Link 
                   href="/student/result"
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all group"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-750 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all group"
                 >
                   Lihat Detail Hasil & Rekomendasi
                   <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
                 </Link>
+
+                {user?.allowRetake && (
+                  <button
+                    type="button"
+                    onClick={handleRetakeTest}
+                    disabled={isStartingRetake}
+                    className="inline-flex items-center gap-2 border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-205 font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-lg">replay</span>
+                    {isStartingRetake ? "Mempersiapkan Ujian..." : "Ambil Tes Ulang"}
+                  </button>
+                )}
               </div>
             </div>
 

@@ -59,11 +59,11 @@ export default function RadarChart6({ scores }: RadarChart6Props) {
   // Labels coordinates and anchors
   const labels: { label: string; x: number; y: number; anchor: "middle" | "start" | "end" }[] = [
     { label: "VOC", x: 50, y: 7, anchor: "middle" },      // Top
-    { label: "GRA", x: 92, y: 31, anchor: "start" },      // Top-Right
-    { label: "LIS", x: 92, y: 73, anchor: "start" },      // Bottom-Right
-    { label: "REA", x: 50, y: 97, anchor: "middle" },     // Bottom
-    { label: "WRI", x: 8, y: 73, anchor: "end" },         // Bottom-Left
-    { label: "SPE", x: 8, y: 31, anchor: "end" },         // Top-Left
+    { label: "GRM", x: 92, y: 31, anchor: "start" },      // Top-Right
+    { label: "LST", x: 92, y: 73, anchor: "start" },      // Bottom-Right
+    { label: "RDG", x: 50, y: 97, anchor: "middle" },     // Bottom
+    { label: "WRT", x: 8, y: 73, anchor: "end" },         // Bottom-Left
+    { label: "SPK", x: 8, y: 31, anchor: "end" },         // Top-Left
   ];
 
   return (
@@ -74,25 +74,29 @@ export default function RadarChart6({ scores }: RadarChart6Props) {
       
       <div className="w-56 h-56 sm:w-64 sm:h-64 relative">
         <svg
-          viewBox="0 0 100 100"
+          viewBox="-10 -8 120 116"
           className="w-full h-full text-slate-800 dark:text-slate-100"
           fill="none"
           stroke="currentColor"
         >
           <defs>
-            <radialGradient id="radarAreaGradient" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.1" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.35" />
+            <radialGradient id="radarAreaGradient" cx="50%" cy="50%" r="60%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#0d9488" stopOpacity="0.4" />
             </radialGradient>
           </defs>
+
+          {/* Alternating filled hexagons for premium grid depth */}
+          <polygon points={gridPolygons[3]} className="fill-slate-50/20 dark:fill-slate-900/10 stroke-none" />
+          <polygon points={gridPolygons[1]} className="fill-slate-100/35 dark:fill-slate-900/25 stroke-none" />
 
           {/* Concentric Hexagon Grid Lines */}
           {gridPolygons.map((points, idx) => (
             <polygon
               key={idx}
               points={points}
-              className="stroke-slate-200/80 dark:stroke-slate-800/80"
-              strokeWidth="0.5"
+              className="stroke-slate-200/70 dark:stroke-slate-800/75"
+              strokeWidth="0.4"
               strokeDasharray={idx < 3 ? "2 2" : "0"}
             />
           ))}
@@ -105,8 +109,8 @@ export default function RadarChart6({ scores }: RadarChart6Props) {
               y1="50"
               x2={line.x}
               y2={line.y}
-              className="stroke-slate-200/80 dark:stroke-slate-800/80"
-              strokeWidth="0.5"
+              className="stroke-slate-200/70 dark:stroke-slate-800/75"
+              strokeWidth="0.4"
             />
           ))}
 
@@ -114,8 +118,8 @@ export default function RadarChart6({ scores }: RadarChart6Props) {
           <polygon
             points={scorePointsStr}
             fill="url(#radarAreaGradient)"
-            className="stroke-blue-600 dark:stroke-blue-500 text-blue-600 dark:text-blue-500"
-            strokeWidth="1.5"
+            className="stroke-teal-600 dark:stroke-teal-500 text-teal-600 dark:text-teal-500"
+            strokeWidth="1.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -126,17 +130,17 @@ export default function RadarChart6({ scores }: RadarChart6Props) {
               key={idx}
               cx={p.x}
               cy={p.y}
-              r="2"
-              className="fill-white dark:fill-[#151D30] stroke-blue-600 dark:stroke-blue-500"
-              strokeWidth="1.5"
+              r="2.2"
+              className="fill-white dark:fill-[#151D30] stroke-teal-650 dark:stroke-teal-400"
+              strokeWidth="1.8"
             />
           ))}
 
           {/* Grid Value Text Marks (e.g. 50, 100) */}
-          <text x="50" y="41" className="font-mono font-bold text-slate-300 dark:text-slate-700" fontSize="3" textAnchor="middle">25</text>
-          <text x="50" y="31.5" className="font-mono font-bold text-slate-350 dark:text-slate-700" fontSize="3" textAnchor="middle">50</text>
-          <text x="50" y="22" className="font-mono font-bold text-slate-350 dark:text-slate-700" fontSize="3" textAnchor="middle">75</text>
-          <text x="50" y="12.5" className="font-mono font-bold text-slate-400 dark:text-slate-650" fontSize="3" textAnchor="middle">100</text>
+          <text x="53.5" y="42.5" className="font-mono font-bold fill-slate-400 dark:fill-slate-500" fontSize="2.8" textAnchor="start" stroke="none">25</text>
+          <text x="53.5" y="33" className="font-mono font-bold fill-slate-400 dark:fill-slate-500" fontSize="2.8" textAnchor="start" stroke="none">50</text>
+          <text x="53.5" y="23.5" className="font-mono font-bold fill-slate-400 dark:fill-slate-500" fontSize="2.8" textAnchor="start" stroke="none">75</text>
+          <text x="53.5" y="14" className="font-mono font-bold fill-slate-400 dark:fill-slate-500" fontSize="2.8" textAnchor="start" stroke="none">100</text>
 
           {/* Outer labels */}
           {labels.map((item, idx) => (
@@ -144,9 +148,10 @@ export default function RadarChart6({ scores }: RadarChart6Props) {
               key={idx}
               x={item.x}
               y={item.y}
-              className="font-hanken font-bold fill-slate-500 dark:fill-slate-400"
+              className="font-hanken font-extrabold fill-slate-700 dark:fill-slate-300"
               fontSize="4.5"
               textAnchor={item.anchor}
+              stroke="none"
             >
               {item.label}
             </text>

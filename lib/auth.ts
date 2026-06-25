@@ -29,6 +29,7 @@ export interface AuthUser {
   major?: string | null;
   cohort?: string | null;
   hasModuleAccess: boolean;
+  allowRetake: boolean;
 }
 
 /**
@@ -117,6 +118,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         major: true,
         cohort: true,
         hasModuleAccess: true,
+        allowRetake: true,
       },
     });
 
@@ -147,6 +149,7 @@ export async function getCurrentUserFromRequest(request: NextRequest): Promise<A
         major: true,
         cohort: true,
         hasModuleAccess: true,
+        allowRetake: true,
       },
     });
 

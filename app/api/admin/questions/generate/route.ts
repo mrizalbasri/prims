@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { SectionType, QuestionDifficulty } from "@prisma/client";
+import { SectionType } from "@prisma/client";
+
+interface GeneratedQuestion {
+  questionText: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+interface QuestionMetadata {
+  generatedBy: string;
+  audioUrl?: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -208,8 +220,8 @@ Output format must be a JSON object with a single key "questions" containing an 
 
     // Post-process to inject metadata if needed
     if (parsedData.questions && Array.isArray(parsedData.questions)) {
-      parsedData.questions = parsedData.questions.map((q: any) => {
-        const metadata: any = { generatedBy: "AI" };
+      parsedData.questions = parsedData.questions.map((q: GeneratedQuestion) => {
+        const metadata: QuestionMetadata = { generatedBy: "AI" };
         if (sectionType === SectionType.LISTENING) {
           metadata.audioUrl = ttsAudioUrl || promptInput;
         }

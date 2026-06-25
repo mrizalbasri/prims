@@ -10,7 +10,7 @@ type WritingPromptRow = {
   promptText: string;
   wordCountMin: number;
   wordCountMax: number;
-  rubric: any;
+  rubric: unknown;
 };
 
 export default function WritingTab() {
@@ -315,7 +315,7 @@ export default function WritingTab() {
                       if (parsed.criteria && Array.isArray(parsed.criteria)) {
                         criteriaList = parsed.criteria;
                       }
-                    } catch (e) {
+                    } catch {
                       criteriaList = ["General"];
                     }
                   }

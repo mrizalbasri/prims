@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
-import { UserStatus } from '@prisma/client';
+import { UserStatus, Prisma } from '@prisma/client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, status, hasModuleAccess, resetTest } = body;
+    const { userId, status, hasModuleAccess, resetTest, allowRetake } = body;
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
@@ -32,12 +32,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
     if (status === 'ACTIVE' || status === 'SUSPENDED') {
       updateData.status = status as UserStatus;
     }
     if (typeof hasModuleAccess === 'boolean') {
       updateData.hasModuleAccess = hasModuleAccess;
+    }
+    if (typeof allowRetake === 'boolean') {
+      updateData.allowRetake = allowRetake;
     }
 
     if (resetTest === true) {
@@ -62,6 +65,7 @@ export async function POST(request: NextRequest) {
         role: true,
         status: true,
         hasModuleAccess: true,
+        allowRetake: true,
         cohort: true,
         major: true,
       },

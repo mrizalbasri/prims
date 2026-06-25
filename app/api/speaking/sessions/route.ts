@@ -1,8 +1,20 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { ResponseStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+
+type SessionWithScenario = Prisma.SpeakingSessionGetPayload<{
+  include: {
+    scenario: {
+      select: {
+        title: true;
+        type: true;
+        level: true;
+      };
+    };
+  };
+}>;
 
 export async function GET(request: NextRequest) {
   try {
@@ -84,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        sessions: sessions.map((s: any) => ({
+        sessions: sessions.map((s: SessionWithScenario) => ({
           id: s.id,
           scenario: s.scenario,
           overallScore: s.overallScore,

@@ -1,9 +1,23 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { SectionType, TestAttemptStatus } from '@prisma/client';
+import { SectionType } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 import { getTestSettings } from '@/lib/settings';
+
+interface FrontendQuestion {
+  id: string;
+  prompt: string;
+  options?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+interface ParsedQuestion {
+  id: string;
+  questionText: string;
+  options: string[];
+  metadata?: Record<string, unknown>;
+}
 
 const SECTION_TYPES_ORDER = [
   SectionType.VOCABULARY,
@@ -71,12 +85,12 @@ export async function GET(request: NextRequest) {
     const sectionsData = SECTION_TYPES_ORDER.map((secType) => {
       const sa = testAttempt.sectionAttempts.find((s) => s.sectionType === secType);
       
-      let questions: any[] = [];
+      let questions: FrontendQuestion[] = [];
       if (sa && sa.feedback) {
         try {
           const parsed = JSON.parse(sa.feedback);
           if (secType === SectionType.VOCABULARY || secType === SectionType.GRAMMAR || secType === SectionType.READING || secType === SectionType.LISTENING) {
-            questions = (parsed.questions || []).map((q: any) => ({
+            questions = (parsed.questions as ParsedQuestion[] || []).map((q: ParsedQuestion) => ({
               id: q.id,
               prompt: q.questionText,
               options: q.options,

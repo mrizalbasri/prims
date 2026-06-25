@@ -1,8 +1,38 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+
+type SectionAttemptWithResponses = Prisma.SectionAttemptGetPayload<{
+  include: {
+    writingResponse: {
+      select: {
+        feedback: true;
+      };
+    };
+    speakingResponse: {
+      select: {
+        feedback: true;
+      };
+    };
+  };
+}>;
+
+interface SectionScores {
+  VOCABULARY?: number;
+  vocabulary?: number;
+  GRAMMAR?: number;
+  grammar?: number;
+  LISTENING?: number;
+  listening?: number;
+  READING?: number;
+  reading?: number;
+  WRITING?: number;
+  writing?: number;
+  SPEAKING?: number;
+  speaking?: number;
+}
 
 
 
@@ -50,7 +80,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Prepare section details with feedback
-    const sectionDetails = testAttempt.sectionAttempts.map((section: any) => ({
+    const sectionDetails = testAttempt.sectionAttempts.map((section: SectionAttemptWithResponses) => ({
       sectionType: section.sectionType,
       rawScore: section.rawScore,
       weightedScore: section.weightedScore,
@@ -60,7 +90,7 @@ export async function GET(request: NextRequest) {
         null,
     }));
 
-    const rawScores = (testAttempt.finalResult.sectionScores || {}) as any;
+    const rawScores = (testAttempt.finalResult.sectionScores || {}) as unknown as SectionScores;
     const scores = {
       vocabulary: rawScores.VOCABULARY ?? rawScores.vocabulary ?? 0,
       grammar: rawScores.GRAMMAR ?? rawScores.grammar ?? 0,

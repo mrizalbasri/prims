@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus, SpeakingScenarioType, ProficiencyLevel } from '@prisma/client';
+import { SpeakingScenarioType, ProficiencyLevel, SpeakingScenario, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
 
     // Build filter
-    const where: any = { isActive: true };
+    const where: Prisma.SpeakingScenarioWhereInput = { isActive: true };
     if (type) where.type = type;
     if (level) where.level = level;
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get user's session count for each scenario
-    const scenarioIds = scenarios.map((s: any) => s.id);
+    const scenarioIds = scenarios.map((s: SpeakingScenario) => s.id);
     const sessions = await prisma.speakingSession.findMany({
       where: {
         userId: user.id,
@@ -47,11 +47,11 @@ export async function GET(request: NextRequest) {
     });
 
     const sessionMap = new Map<string, number>();
-    sessions.forEach((s: any) => {
+    sessions.forEach((s: { id: string; scenarioId: string }) => {
       sessionMap.set(s.scenarioId, (sessionMap.get(s.scenarioId) || 0) + 1);
     });
 
-    const scenariosWithStats = scenarios.map((scenario: any) => ({
+    const scenariosWithStats = scenarios.map((scenario: SpeakingScenario) => ({
       id: scenario.id,
       title: scenario.title,
       description: scenario.description,

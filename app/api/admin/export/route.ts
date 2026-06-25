@@ -1,8 +1,18 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
+
+type StudentWithAttempts = Prisma.UserGetPayload<{
+  include: {
+    testAttempts: {
+      include: {
+        finalResult: true;
+      };
+    };
+  };
+}>;
 
 
 
@@ -20,7 +30,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // Build filter conditions
-    const userFilter: any = { role: 'STUDENT' };
+    const userFilter: Prisma.UserWhereInput = { role: 'STUDENT' };
     if (cohort) userFilter.cohort = cohort;
     if (major) userFilter.major = major;
     if (search) {
@@ -70,7 +80,7 @@ export async function GET(request: NextRequest) {
       'Proficiency Level',
     ];
 
-    const csvRows = students.map((stud: any) => {
+    const csvRows = students.map((stud: StudentWithAttempts) => {
       const attempt = stud.testAttempts?.[0] || null;
       const rawScores = attempt?.finalResult?.sectionScores
         ? (typeof attempt.finalResult.sectionScores === 'string'
@@ -121,8 +131,8 @@ export async function GET(request: NextRequest) {
     // Build CSV string
     const csvContent = [
       csvHeaders.join(','),
-      ...csvRows.map((row: any) =>
-        row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ...csvRows.map((row: string[]) =>
+        row.map((cell: string) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
       ),
     ].join('\n');
 

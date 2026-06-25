@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { SpeakingScenarioType, ProficiencyLevel } from '@prisma/client';
+import { SpeakingScenarioType, ProficiencyLevel, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '15');
     const skip = (page - 1) * limit;
 
-    const filter: any = { isActive: true };
+    const filter: Prisma.SpeakingScenarioWhereInput = { isActive: true };
 
     if (type && Object.values(SpeakingScenarioType).includes(type as SpeakingScenarioType)) {
       filter.type = type as SpeakingScenarioType;

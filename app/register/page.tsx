@@ -43,8 +43,12 @@ export default function RegisterPage() {
       }
 
       router.push("/login?registered=true");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Terjadi kesalahan sistem");
+      }
     } finally {
       setIsLoading(false);
     }

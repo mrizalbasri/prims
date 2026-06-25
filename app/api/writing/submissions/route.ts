@@ -1,8 +1,20 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, UserRole, SectionType, VocabularyCategory, QuestionDifficulty, ResponseStatus, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+
+type SubmissionWithPrompt = Prisma.WritingSubmissionGetPayload<{
+  include: {
+    prompt: {
+      select: {
+        title: true;
+        type: true;
+        level: true;
+      };
+    };
+  };
+}>;
 
 
 
@@ -88,7 +100,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        submissions: submissions.map((s: any) => ({
+        submissions: submissions.map((s: SubmissionWithPrompt) => ({
           id: s.id,
           prompt: s.prompt,
           wordCount: s.wordCount,

@@ -1,29 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import SpeakingTestRecorder from "@/components/student/SpeakingTestRecorder";
-import HighlightableText from "@/components/student/HighlightableText";
-import ListeningPlayer from "@/components/student/ListeningPlayer";
 import BottomNavBar from "@/components/student/BottomNavBar";
-import Logo from "@/components/ui/Logo";
-
-type Question = {
-  id: string;
-  prompt: string;
-  options?: string[];
-  metadata?: {
-    audioUrl?: string;
-    topic?: string;
-    skill?: string;
-  };
-};
-
-type Section = {
-  section: "vocabulary" | "grammar" | "listening" | "reading" | "writing" | "speaking";
-  durationMinutes: number;
-  questions: Question[];
-};
+import SectionProgress from "@/components/student/test/SectionProgress";
+import SubmitReviewModal from "@/components/student/test/SubmitReviewModal";
+import TestHeader from "@/components/student/test/TestHeader";
+import TestSectionContent from "@/components/student/test/TestSectionContent";
+import { buildCompletionSummary } from "@/components/student/test/testSummary";
+import type { SaveStatus, TestQuestion as Question, TestSection as Section } from "@/components/student/test/types";
 
 type StatePayload = {
   attempt: {
@@ -56,11 +41,16 @@ export default function StudentTestPage() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [audioUrlState, setAudioUrlState] = useState<string | null>(null);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasLoadedTestRef = useRef(false);
 
   const currentSection = sections[sectionIndex];
+  const isLastSection = sectionIndex + 1 === sections.length;
 
   const [prevSectionIndex, setPrevSectionIndex] = useState(sectionIndex);
   if (sectionIndex !== prevSectionIndex) {
@@ -70,20 +60,17 @@ export default function StudentTestPage() {
 
   const readingPassage = useMemo(() => {
     if (!currentSection || currentSection.section !== "reading") return null;
-    for (const q of currentSection.questions) {
-      const matches = [...q.prompt.matchAll(/"([^"]{50,})"/g)];
-      if (matches.length > 0) {
-        return matches[0][1];
-      }
+    for (const question of currentSection.questions) {
+      const matches = [...question.prompt.matchAll(/"([^"]{50,})"/g)];
+      if (matches.length > 0) return matches[0][1];
     }
-    // Fallback
-    const firstQ = currentSection.questions[0];
-    if (firstQ?.prompt.includes('"')) {
-      const parts = firstQ.prompt.split('"');
-      if (parts.length > 2) {
-        return parts[1];
-      }
+
+    const firstQuestion = currentSection.questions[0];
+    if (firstQuestion?.prompt.includes('"')) {
+      const parts = firstQuestion.prompt.split('"');
+      if (parts.length > 2) return parts[1];
     }
+
     return null;
   }, [currentSection]);
 
@@ -92,7 +79,7 @@ export default function StudentTestPage() {
     const lastQuoteIndex = prompt.lastIndexOf('"');
     if (lastQuoteIndex !== -1 && lastQuoteIndex < prompt.length - 1) {
       const cleaned = prompt.slice(lastQuoteIndex + 1).trim();
-      return cleaned.replace(/^[\s\r\n\-\:\?]+/, '');
+      return cleaned.replace(/^[\s\r\n\-\:\?]+/, "");
     }
     return prompt;
   }, []);
@@ -100,41 +87,34 @@ export default function StudentTestPage() {
   const listeningGroups = useMemo(() => {
     if (!currentSection || currentSection.section !== "listening") return [];
     const groups: { audioUrl: string; questions: Question[] }[] = [];
-    currentSection.questions.forEach((q) => {
-      const audioUrl = q.metadata?.audioUrl || "";
-      let group = groups.find((g) => g.audioUrl === audioUrl);
+    currentSection.questions.forEach((question) => {
+      const audioUrl = question.metadata?.audioUrl || "";
+      let group = groups.find((item) => item.audioUrl === audioUrl);
       if (!group) {
         group = { audioUrl, questions: [] };
         groups.push(group);
       }
-      group.questions.push(q);
+      group.questions.push(question);
     });
     return groups;
   }, [currentSection]);
 
-  const scrollToQuestion = useCallback((idx: number) => {
+  const scrollToQuestion = useCallback((index: number) => {
     if (currentSection?.section === "listening") {
-      const targetQ = currentSection.questions[idx];
-      if (targetQ) {
-        const groupIdx = listeningGroups.findIndex((g) =>
-          g.questions.some((q) => q.id === targetQ.id)
-        );
-        if (groupIdx !== -1) {
-          setCurrentListeningGroupIdx(groupIdx);
+      const targetQuestion = currentSection.questions[index];
+      if (targetQuestion) {
+        const groupIndex = listeningGroups.findIndex((group) => group.questions.some((question) => question.id === targetQuestion.id));
+        if (groupIndex !== -1) {
+          setCurrentListeningGroupIdx(groupIndex);
           setTimeout(() => {
-            const el = document.getElementById(`q-${idx}`);
-            if (el) {
-              el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }
+            document.getElementById(`q-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 100);
           return;
         }
       }
     }
-    const el = document.getElementById(`q-${idx}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+
+    document.getElementById(`q-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [currentSection, listeningGroups]);
 
   useEffect(() => {
@@ -156,14 +136,16 @@ export default function StudentTestPage() {
         }
 
         const data = (await stateRes.json()) as StatePayload & { activeSectionIndex?: number };
-        const activeIdx = data.activeSectionIndex ?? 0;
+        const activeIndex = data.activeSectionIndex ?? 0;
         setSections(data.sections);
         setAnswers(data.attempt?.answers ?? {});
         setWritingResponse(data.attempt?.writingResponse ?? "");
         setSpeakingResponse(data.attempt?.speakingResponse ?? "");
         setAudioUrlState(data.attempt?.speakingAudioUrl ?? null);
-        setSectionIndex(activeIdx);
-        setTimeLeft((data.sections[activeIdx]?.durationMinutes ?? 0) * 60);
+        setSectionIndex(activeIndex);
+        setTimeLeft((data.sections[activeIndex]?.durationMinutes ?? 0) * 60);
+        hasLoadedTestRef.current = true;
+        setSaveStatus("saved");
       } catch (err) {
         console.error("Test bootstrap error:", err);
         setError("Gagal memuat tes penempatan.");
@@ -175,26 +157,22 @@ export default function StudentTestPage() {
     void bootstrap();
   }, [router]);
 
-  // Scroll to top of window smoothly when section index changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [sectionIndex]);
 
-  // Exit Warning to prevent accidental page leave
   useEffect(() => {
     if (isLoading || !currentSection) return;
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      const msg = "Apakah Anda yakin ingin meninggalkan halaman? Progres ujian Anda saat ini akan dihentikan.";
-      e.returnValue = msg;
-      return msg;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      const message = "Apakah Anda yakin ingin meninggalkan halaman? Progres ujian Anda saat ini akan dihentikan.";
+      event.returnValue = message;
+      return message;
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isLoading, currentSection]);
 
   const progress = useMemo(() => {
@@ -204,27 +182,41 @@ export default function StudentTestPage() {
 
   const isSectionComplete = useMemo((): boolean => {
     if (!currentSection) return false;
+    if (currentSection.section === "writing") return writingResponse.trim().length > 0;
+    if (currentSection.section === "speaking") return speakingResponse.trim().length > 0 || Boolean(audioUrlState);
+
+    return currentSection.questions.every((question) => Boolean(answers[question.id]?.trim()));
+  }, [currentSection, answers, writingResponse, speakingResponse, audioUrlState]);
+
+  const currentSectionAnswerStats = useMemo(() => {
+    if (!currentSection) return { answered: 0, total: 0, firstUnansweredIndex: -1 };
 
     if (currentSection.section === "writing") {
-      return writingResponse.trim().length > 0;
+      const answered = writingResponse.trim().length > 0 ? 1 : 0;
+      return { answered, total: 1, firstUnansweredIndex: answered ? -1 : 0 };
     }
 
     if (currentSection.section === "speaking") {
-      return speakingResponse.trim().length > 0 || !!audioUrlState;
+      const answered = speakingResponse.trim().length > 0 || Boolean(audioUrlState) ? 1 : 0;
+      return { answered, total: 1, firstUnansweredIndex: answered ? -1 : 0 };
     }
 
-    // Multiple choice sections
-    return currentSection.questions.every((q) => {
-      const ans = answers[q.id];
-      return ans !== undefined && ans !== null && ans.trim().length > 0;
-    });
-  }, [currentSection, answers, writingResponse, speakingResponse, audioUrlState]);
+    const firstUnansweredIndex = currentSection.questions.findIndex((question) => !answers[question.id]?.trim());
+    const answered = currentSection.questions.filter((question) => Boolean(answers[question.id]?.trim())).length;
+    return { answered, total: currentSection.questions.length, firstUnansweredIndex };
+  }, [answers, audioUrlState, currentSection, speakingResponse, writingResponse]);
+
+  const handleAnswerChange = useCallback((questionId: string, value: string) => {
+    setAnswers((previous) => ({ ...previous, [questionId]: value }));
+  }, []);
 
   const persist = useCallback(
-    async (sectionOverride?: Section["section"]): Promise<void> => {
-      setIsSaving(true);
+    async (sectionOverride?: Section["section"]): Promise<boolean> => {
+      setSaveStatus("saving");
+      setSaveError(null);
+
       try {
-        await fetch("/api/test/save", {
+        const saveRes = await fetch("/api/test/save", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -235,13 +227,56 @@ export default function StudentTestPage() {
             currentSection: sectionOverride ?? currentSection?.section,
           }),
         });
+
+        if (!saveRes.ok) throw new Error("Save request failed");
+
+        setSaveStatus("saved");
+        return true;
       } catch (err) {
         console.error("Auto-save error:", err);
-      } finally {
-        setIsSaving(false);
+        setSaveStatus("error");
+        setSaveError("Jawaban belum tersimpan. Cek koneksi lalu coba lagi.");
+        return false;
       }
     },
     [answers, writingResponse, speakingResponse, audioUrlState, currentSection],
+  );
+
+  useEffect(() => {
+    if (!hasLoadedTestRef.current || isLoading || !currentSection) return;
+
+    setSaveStatus("idle");
+    const timeoutId = window.setTimeout(() => {
+      void persist(currentSection.section);
+    }, 1200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [answers, writingResponse, speakingResponse, audioUrlState, currentSection, isLoading, persist]);
+
+  const submitTest = useCallback(
+    async (): Promise<void> => {
+      setIsSubmitting(true);
+      setError(null);
+
+      try {
+        const saved = await persist(currentSection?.section);
+        if (!saved) return;
+
+        const submitRes = await fetch("/api/test/submit", { method: "POST" });
+        if (!submitRes.ok) {
+          setError("Gagal mensubmit tes.");
+          return;
+        }
+        setIsSubmitModalOpen(false);
+        router.push("/student/result");
+      } catch (err) {
+        console.error("Submit error:", err);
+        setError("Gagal mengirimkan ujian.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [currentSection, persist, router],
   );
 
   const moveNext = useCallback(
@@ -250,50 +285,37 @@ export default function StudentTestPage() {
 
       const nextIndex = sectionIndex + 1;
       const nextSection = sections[nextIndex];
-
-      await persist(currentSection.section);
+      const saved = await persist(currentSection.section);
+      if (!saved && !fromTimeout) return;
 
       if (!nextSection) {
-        const confirmSubmit = fromTimeout
-          ? true
-          : window.confirm(
-              "Apakah Anda yakin ingin menyelesaikan ujian Placement Test ini sekarang? Jawaban tidak dapat diubah kembali.",
-            );
-
-        if (!confirmSubmit) return;
-
-        try {
-          const submitRes = await fetch("/api/test/submit", { method: "POST" });
-          if (!submitRes.ok) {
-            setError("Gagal mensubmit tes.");
-            return;
-          }
-          router.push("/student/result");
-        } catch (err) {
-          console.error("Submit error:", err);
-          setError("Gagal mengirimkan ujian.");
+        if (fromTimeout) {
+          await submitTest();
+          return;
         }
+
+        setIsSubmitModalOpen(true);
         return;
       }
 
       setSectionIndex(nextIndex);
-      setTimeLeft(nextSection.durationMinutes * 60);
+      setTimeLeft((nextSection.durationMinutes ?? 0) * 60);
     },
-    [currentSection, sectionIndex, sections, persist, router],
+    [currentSection, sectionIndex, sections, persist, submitTest],
   );
 
   useEffect(() => {
     if (isLoading || !currentSection) return;
 
     const timer = window.setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
+      setTimeLeft((previous) => {
+        if (previous <= 1) {
           window.clearInterval(timer);
           void moveNext(true);
           return 0;
         }
 
-        return prev - 1;
+        return previous - 1;
       });
     }, 1000);
 
@@ -301,21 +323,16 @@ export default function StudentTestPage() {
   }, [currentSection, isLoading, moveNext]);
 
   function formatClock(seconds: number): string {
-    const mins = Math.floor(seconds / 60)
-      .toString()
-      .padStart(2, "0");
-    const secs = Math.floor(seconds % 60)
-      .toString()
-      .padStart(2, "0");
-
+    const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
     return `${mins}:${secs}`;
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
           <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Mempersiapkan Lembar Ujian...</p>
         </div>
       </div>
@@ -326,302 +343,99 @@ export default function StudentTestPage() {
     return <main className="p-10 text-center font-hanken font-bold text-primary">Seksi tes tidak tersedia.</main>;
   }
 
-  const isTimeUrgent = timeLeft < 120; // 2 minutes
+  const isTimeUrgent = timeLeft < 120;
+  const completionSummary = buildCompletionSummary({
+    sections,
+    answers,
+    writingResponse,
+    speakingResponse,
+    speakingAudioUrl: audioUrlState,
+    sectionLabels,
+  });
+
+  const reviewFirstUnanswered = () => {
+    setIsSubmitModalOpen(false);
+    if (currentSectionAnswerStats.firstUnansweredIndex >= 0) {
+      scrollToQuestion(currentSectionAnswerStats.firstUnansweredIndex);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
-      {/* Header Navigation */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Logo className="h-8 w-28" />
-            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
-            <span className="font-inter text-sm font-semibold text-gray-500 dark:text-gray-400 hidden sm:block">Placement Test</span>
-          </div>
-          
-          {/* Timer Display */}
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
-            isTimeUrgent 
-              ? "bg-red-600 border-red-700 text-white animate-pulse shadow-lg shadow-red-500/20" 
-              : "bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400"
-          }`}>
-            <span className="material-symbols-outlined text-xl">timer</span>
-            <span className="font-mono font-black tabular-nums text-lg">
-              {formatClock(timeLeft)}
-            </span>
-          </div>
+    <div className="flex min-h-screen flex-col bg-gray-50 font-inter text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <TestHeader
+        timeLabel={formatClock(timeLeft)}
+        progress={progress}
+        isTimeUrgent={isTimeUrgent}
+        isSectionComplete={isSectionComplete}
+        isUploadingAudio={isUploadingAudio}
+        isLastSection={isLastSection}
+        onNext={() => void moveNext(false)}
+      />
 
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Progress</span>
-              <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">{progress}%</span>
-            </div>
-            
-            <button 
-              disabled={!isSectionComplete || isUploadingAudio}
-              onClick={() => void moveNext(false)}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
-              title={!isSectionComplete ? "Jawab semua pertanyaan untuk lanjut" : undefined}
-            >
-              {isUploadingAudio ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Mengunggah...</span>
-                </>
-              ) : (
-                sectionIndex + 1 === sections.length ? "Kirim Ujian" : "Lanjut Seksi"
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Progress Bar */}
-      <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-800">
-        <div 
-          className="h-full bg-teal-500 transition-all duration-500" 
-          style={{ width: `${progress}%` }}
-        ></div>
-      </div>
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10 pb-32">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 pb-32">
         {error && (
-          <div className="p-4 mb-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl border border-red-250 dark:border-red-900/30 flex items-center gap-3">
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-250 bg-red-50 p-4 text-red-600 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400">
             <span className="material-symbols-outlined">error</span>
             <p className="text-sm font-medium">{error}</p>
           </div>
         )}
 
-        <div className="flex items-center gap-3 mb-6 select-none">
-          <span className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-200/50 dark:border-blue-800/20">
-            {sectionLabels[currentSection.section]}
-          </span>
-          {isSaving && (
-            <span className="text-xs text-gray-400 dark:text-gray-550 italic animate-pulse flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm">cloud_sync</span>
-              Draft disimpan otomatis...
-            </span>
-          )}
-        </div>
+        <SectionProgress
+          sectionLabel={sectionLabels[currentSection.section]}
+          sectionIndex={sectionIndex}
+          totalSections={sections.length}
+          answeredCount={currentSectionAnswerStats.answered}
+          totalQuestions={currentSectionAnswerStats.total}
+          saveStatus={saveStatus}
+          onRetrySave={() => void persist(currentSection.section)}
+        />
 
-        {currentSection.section === "reading" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            {/* Left Column: Reading Passage */}
-            <div className="lg:sticky lg:top-24 max-h-[calc(100vh-16rem)] overflow-y-auto bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 md:p-8 shadow-sm">
-              <HighlightableText text={readingPassage ?? ""} key={readingPassage} />
+        {saveError && (
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined">cloud_off</span>
+              <p className="text-sm font-bold">{saveError}</p>
             </div>
-
-            {/* Right Column: Reading Questions */}
-            <div className="space-y-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2">
-              {currentSection.questions.map((question, idx) => (
-                <div 
-                  key={question.id} 
-                  id={`q-${idx}`}
-                  className="scroll-mt-24 bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 md:p-8 shadow-sm space-y-6"
-                >
-                  <div className="flex gap-4">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-mono font-bold text-sm">
-                      {idx + 1}
-                    </span>
-                    <h2 className="font-hanken text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-relaxed pt-0.5 select-none">
-                      {getCleanPrompt(question.prompt, currentSection.section)}
-                    </h2>
-                  </div>
-
-                  {question.options && (
-                    <div className="grid grid-cols-1 gap-3 pl-0 md:pl-12">
-                      {question.options.map((option) => {
-                        const isSelected = answers[question.id] === option;
-                        return (
-                          <label 
-                            key={option}
-                            className={`group relative flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                              isSelected 
-                                ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
-                                : "border-gray-100 dark:border-gray-800 hover:border-teal-500/50 hover:bg-gray-50 dark:hover:bg-gray-800"
-                            }`}
-                          >
-                            <input 
-                              type="radio" 
-                              name={question.id}
-                              className="peer hidden"
-                              checked={isSelected}
-                              onChange={() => setAnswers(prev => ({ ...prev, [question.id]: option }))}
-                            />
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
-                              isSelected 
-                                ? "border-teal-500 bg-teal-500 text-white" 
-                                : "border-gray-300 dark:border-gray-650 group-hover:border-teal-500"
-                            }`}>
-                              {isSelected && <span className="material-symbols-outlined text-xs">check</span>}
-                            </div>
-                            <span className={`font-inter text-sm font-semibold ${
-                              isSelected ? "text-teal-650 dark:text-teal-400" : "text-gray-700 dark:text-gray-350"
-                            }`}>
-                              {option}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          /* Standard Single Column Layout for non-reading sections */
-          <div className="max-w-3xl mx-auto space-y-8">
-            {currentSection.section === "listening" && listeningGroups[currentListeningGroupIdx]?.audioUrl && (
-              <div className="mb-6">
-                <ListeningPlayer 
-                  audioUrl={listeningGroups[currentListeningGroupIdx].audioUrl} 
-                  key={listeningGroups[currentListeningGroupIdx].audioUrl}
-                />
-              </div>
-            )}
-
-            <div className="space-y-6">
-              {currentSection.questions.map((question, idx) => {
-                if (currentSection.section === "listening") {
-                  const activeGroup = listeningGroups[currentListeningGroupIdx];
-                  if (!activeGroup || !activeGroup.questions.some((q) => q.id === question.id)) {
-                    return null;
-                  }
-                }
-
-                return (
-                  <div 
-                    key={question.id} 
-                    id={`q-${idx}`}
-                    className="scroll-mt-24 bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-6 md:p-8 shadow-sm space-y-6"
-                  >
-                    <div className="flex gap-4">
-                      <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-mono font-bold text-sm">
-                        {idx + 1}
-                      </span>
-                      <h2 className="font-hanken text-lg md:text-xl font-bold text-gray-900 dark:text-white leading-relaxed pt-0.5 select-none">
-                        {question.prompt}
-                      </h2>
-                    </div>
-
-                    {question.options && (
-                      <div className="grid grid-cols-1 gap-3 pl-0 md:pl-12">
-                        {question.options.map((option) => {
-                          const isSelected = answers[question.id] === option;
-                          return (
-                            <label 
-                              key={option}
-                              className={`group relative flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                                isSelected 
-                                  ? "border-teal-500 bg-teal-50/50 dark:bg-teal-500/10" 
-                                  : "border-gray-100 dark:border-gray-800 hover:border-teal-500/50 hover:bg-gray-50 dark:hover:bg-gray-800"
-                              }`}
-                            >
-                              <input 
-                                type="radio" 
-                                name={question.id}
-                                className="peer hidden"
-                                checked={isSelected}
-                                onChange={() => setAnswers(prev => ({ ...prev, [question.id]: option }))}
-                              />
-                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
-                                isSelected 
-                                  ? "border-teal-500 bg-teal-500 text-white" 
-                                  : "border-gray-300 dark:border-gray-650 group-hover:border-teal-500"
-                              }`}>
-                                {isSelected && <span className="material-symbols-outlined text-xs">check</span>}
-                              </div>
-                              <span className={`font-inter text-sm font-semibold ${
-                                isSelected ? "text-teal-650 dark:text-teal-400" : "text-gray-700 dark:text-gray-350"
-                              }`}>
-                                {option}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {currentSection.section === "writing" && (
-                      <div className="pl-0 md:pl-12 space-y-2">
-                        <textarea
-                          value={writingResponse}
-                          onChange={(e) => setWritingResponse(e.target.value)}
-                          className="w-full min-h-[300px] p-6 rounded-2xl border-2 border-gray-250 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all font-inter bg-gray-50/50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none leading-relaxed text-sm"
-                          placeholder="Tulis esai tanggapan Anda di sini secara lengkap..."
-                        />
-                        <div className="flex justify-between items-center text-xs text-gray-400">
-                          <span>Patuhi batasan penulisan argumen akademik.</span>
-                          <span>{writingResponse.trim().split(/\s+/).filter(w => w.length > 0).length} kata</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {currentSection.section === "speaking" && (
-                      <SpeakingTestRecorder
-                        text={speakingResponse}
-                        audioUrl={audioUrlState}
-                        onChange={(text, url) => {
-                          setSpeakingResponse(text);
-                          setAudioUrlState(url);
-                        }}
-                        onUploadingChange={setIsUploadingAudio}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Listening Group Navigation Buttons */}
-            {currentSection.section === "listening" && (
-              <div className="flex justify-between items-center pt-6">
-                <button
-                  type="button"
-                  disabled={currentListeningGroupIdx === 0}
-                  onClick={() => {
-                    setCurrentListeningGroupIdx(prev => prev - 1);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="px-6 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 font-hanken font-bold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-sm">arrow_back</span>
-                  Audio Sebelumnya
-                </button>
-
-                <span className="text-xs font-semibold text-gray-500">
-                  Audio {currentListeningGroupIdx + 1} dari {listeningGroups.length}
-                </span>
-
-                {currentListeningGroupIdx < listeningGroups.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentListeningGroupIdx(prev => prev + 1);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-750 text-white font-hanken font-bold text-sm hover:shadow-lg transition-all cursor-pointer flex items-center gap-2"
-                  >
-                    Audio Berikutnya
-                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={!isSectionComplete}
-                    onClick={() => void moveNext(false)}
-                    className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-hanken font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
-                  >
-                    Selesaikan Listening
-                    <span className="material-symbols-outlined text-sm">done_all</span>
-                  </button>
-                )}
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => void persist(currentSection.section)}
+              className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+            >
+              Coba lagi
+            </button>
           </div>
         )}
+
+        <TestSectionContent
+          currentSection={currentSection}
+          readingPassage={readingPassage}
+          getCleanPrompt={getCleanPrompt}
+          answers={answers}
+          onAnswerChange={handleAnswerChange}
+          writingResponse={writingResponse}
+          setWritingResponse={setWritingResponse}
+          speakingResponse={speakingResponse}
+          setSpeakingResponse={setSpeakingResponse}
+          audioUrlState={audioUrlState}
+          setAudioUrlState={setAudioUrlState}
+          setIsUploadingAudio={setIsUploadingAudio}
+          listeningGroups={listeningGroups}
+          currentListeningGroupIdx={currentListeningGroupIdx}
+          setCurrentListeningGroupIdx={setCurrentListeningGroupIdx}
+          isSectionComplete={isSectionComplete}
+          moveNext={moveNext}
+          onQuestionClick={scrollToQuestion}
+        />
       </main>
+
+      <SubmitReviewModal
+        isOpen={isSubmitModalOpen}
+        isSubmitting={isSubmitting}
+        summary={completionSummary}
+        onCancel={() => setIsSubmitModalOpen(false)}
+        onConfirm={() => void submitTest()}
+        onReviewUnanswered={reviewFirstUnanswered}
+      />
 
       <BottomNavBar
         currentSection={currentSection}
@@ -631,7 +445,10 @@ export default function StudentTestPage() {
         speakingAudioUrl={audioUrlState}
         sectionLabels={sectionLabels}
         onQuestionClick={scrollToQuestion}
+        isUploadingAudio={isUploadingAudio}
       />
     </div>
   );
 }
+
+

@@ -1,4 +1,18 @@
-import { VocabularyCategory, CardState, QuestionDifficulty } from '@prisma/client';
+import { VocabularyCategory, CardState, QuestionDifficulty, VocabularyProgress, Prisma } from '@prisma/client';
+
+export interface ReviewCard {
+  progressId: string;
+  cardId: string;
+  term: string;
+  meaning: string;
+  exampleSentence: string | null;
+  pronunciation: string | null;
+  audioUrl: string | null;
+  category: VocabularyCategory;
+  difficulty: QuestionDifficulty;
+  state: CardState;
+  repetitionCount: number;
+}
 import prisma from '@/lib/prisma';
 
 
@@ -192,7 +206,7 @@ export function getVocabularyCards(
 export async function getNextReviewCards(
   userId: string,
   limit: number = 10
-): Promise<any[]> {
+): Promise<ReviewCard[]> {
   // Get cards that need review (not mastered, or due for review)
   const progress = await prisma.vocabularyProgress.findMany({
     where: {
@@ -211,7 +225,13 @@ export async function getNextReviewCards(
     take: limit,
   });
 
-  return progress.map((p: any) => ({
+  type ProgressWithCard = Prisma.VocabularyProgressGetPayload<{
+    include: {
+      card: true;
+    };
+  }>;
+
+  return progress.map((p: ProgressWithCard) => ({
     progressId: p.id,
     cardId: p.card.id,
     term: p.card.term,
@@ -305,9 +325,9 @@ export async function getVocabularyStats(userId: string) {
 
   const stats = {
     total: progress.length,
-    new: progress.filter((p: any) => p.state === CardState.NEW).length,
-    learning: progress.filter((p: any) => p.state === CardState.LEARNING).length,
-    mastered: progress.filter((p: any) => p.state === CardState.MASTERED).length,
+    new: progress.filter((p: VocabularyProgress) => p.state === CardState.NEW).length,
+    learning: progress.filter((p: VocabularyProgress) => p.state === CardState.LEARNING).length,
+    mastered: progress.filter((p: VocabularyProgress) => p.state === CardState.MASTERED).length,
   };
 
   return stats;

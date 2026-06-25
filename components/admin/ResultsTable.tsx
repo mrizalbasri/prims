@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import ResultDetailDrawer from "./ResultDetailDrawer";
 
 export type Row = {
   testAttemptId: string;
@@ -41,8 +42,13 @@ export default function ResultsTable({
   totalCount,
   onPageChange,
 }: ResultsTableProps) {
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [selectedStudentName, setSelectedStudentName] = useState<string>("");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
   return (
-    <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-sm overflow-hidden">
+    <>
+      <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -90,7 +96,12 @@ export default function ResultsTable({
               rows.map((row) => (
                 <tr
                   key={row.testAttemptId}
-                  className="hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-colors group"
+                  onClick={() => {
+                    setSelectedAttemptId(row.testAttemptId);
+                    setSelectedStudentName(row.student.fullName);
+                    setIsDrawerOpen(true);
+                  }}
+                  className="hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-colors group cursor-pointer"
                 >
                   <td className="px-6 py-4">
                     <div>
@@ -216,5 +227,13 @@ export default function ResultsTable({
         </div>
       )}
     </div>
+
+      <ResultDetailDrawer
+        isOpen={isDrawerOpen}
+        testAttemptId={selectedAttemptId}
+        studentName={selectedStudentName}
+        onClose={() => setIsDrawerOpen(false)}
+      />
+    </>
   );
 }

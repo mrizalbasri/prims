@@ -306,7 +306,7 @@ export default function VocabularyPage() {
                     <div className="space-y-2">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Contoh Kalimat</span>
                       <p className="font-inter text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                        "{currentCard.example}"
+                        &quot;{currentCard.example}&quot;
                       </p>
                     </div>
                   </div>
@@ -357,7 +357,7 @@ export default function VocabularyPage() {
               Sistem Spaced Repetition (SRS)
             </h4>
             <p className="font-inter text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-              Algoritma PRISM mengatur waktu pemunculan kembali flashcard ini secara cerdas. Kartu yang Anda nilai "Lupa" atau "Sulit" akan muncul kembali lebih sering, sedangkan kata yang dinilai "Mudah" akan diuji kembali setelah interval waktu yang lebih lama.
+              Algoritma PRISM mengatur waktu pemunculan kembali flashcard ini secara cerdas. Kartu yang Anda nilai &quot;Lupa&quot; atau &quot;Sulit&quot; akan muncul kembali lebih sering, sedangkan kata yang dinilai &quot;Mudah&quot; akan diuji kembali setelah interval waktu yang lebih lama.
             </p>
           </div>
         </div>
