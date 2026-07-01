@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import RadarChart6 from "./RadarChart6";
+import { RadarChart } from "../RadarChart";
 
 type SectionItem = {
   label: string;
@@ -126,7 +126,7 @@ export default function CompetencyChart({ scores, barsVisible }: CompetencyChart
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left Side: Radar Chart */}
         <div className="w-full lg:w-72 flex-shrink-0">
-          <RadarChart6 scores={scores} />
+          <RadarChart scores={scores} />
         </div>
 
         {/* Right Side: Skill Progress Cards */}
