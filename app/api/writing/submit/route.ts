@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse, waitUntil } from 'next/server';
-import { ResponseStatus } from '@prisma/client';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { ResponseStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI } from '@/lib/scoring';
@@ -85,14 +85,14 @@ export async function POST(request: NextRequest) {
       { promptId, wordCount }
     );
 
-    // Process AI scoring asynchronously using waitUntil to keep serverless function alive
-    waitUntil(
-      processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
+    // Process AI scoring asynchronously using after to keep serverless function alive
+    after(async () => {
+      await processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
         (error) => {
           console.error('Writing scoring error:', error);
         }
-      )
-    );
+      );
+    });
 
     return NextResponse.json(
       {
@@ -140,7 +140,7 @@ async function processWritingScoring(
     await prisma.writingSubmission.update({
       where: { id: submissionId },
       data: {
-        aiFeedbackJson: feedback,
+        aiFeedbackJson: feedback as Prisma.InputJsonValue,
         grammarScore,
         clarityScore,
         structureScore,

@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse, waitUntil } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { SectionType, SectionStatus, TestAttemptStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
@@ -107,12 +107,12 @@ export async function POST(request: NextRequest) {
       { testAttemptId }
     );
 
-    // Process AI scoring asynchronously using waitUntil to keep serverless function alive
-    waitUntil(
-      processAIScoring(testAttemptId).catch((error) => {
+    // Process AI scoring asynchronously using after to keep serverless function alive
+    after(async () => {
+      await processAIScoring(testAttemptId).catch((error) => {
         console.error('AI scoring error:', error);
-      })
-    );
+      });
+    });
 
     return NextResponse.json(
       {

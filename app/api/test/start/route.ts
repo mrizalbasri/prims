@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
+import { SectionType, SectionStatus, TestAttemptStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { getRandomQuestions, getRandomPrompt } from '@/lib/questions';
@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
       } else {
         // WRITING or SPEAKING
         let promptText = 'Respond to the prompt.';
-        let rubricJson: Prisma.InputJsonValue = null;
+        let rubricJson: any = null;
 
         if (sectionAttempt.sectionType === SectionType.WRITING) {
           const dbPrompts = await prisma.writingPrompt.findMany({

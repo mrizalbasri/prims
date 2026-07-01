@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse, waitUntil } from 'next/server';
-import { ResponseStatus } from '@prisma/client';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { ResponseStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreSpeakingWithAI } from '@/lib/scoring';
@@ -84,9 +84,9 @@ export async function POST(request: NextRequest) {
       { scenarioId, durationSec }
     );
 
-    // Process AI scoring asynchronously using waitUntil to keep serverless function alive
-    waitUntil(
-      processSpeakingScoring(
+    // Process AI scoring asynchronously using after to keep serverless function alive
+    after(async () => {
+      await processSpeakingScoring(
         session.id,
         transcriptText,
         scenario.title,
@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
         audioUrl
       ).catch((error) => {
         console.error('Speaking scoring error:', error);
-      })
-    );
+      });
+    });
 
     return NextResponse.json(
       {
@@ -149,7 +149,7 @@ async function processSpeakingScoring(
     await prisma.speakingSession.update({
       where: { id: sessionId },
       data: {
-        aiFeedbackJson: feedback,
+        aiFeedbackJson: feedback as Prisma.InputJsonValue,
         transcriptText: finalTranscriptText,
         fluencyScore,
         pronunciationScore,

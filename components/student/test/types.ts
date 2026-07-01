@@ -8,6 +8,7 @@ export type TestQuestion = {
     audioUrl?: string;
     topic?: string;
     skill?: string;
+    passage?: string;
   };
 };
 

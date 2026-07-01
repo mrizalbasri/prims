@@ -208,6 +208,14 @@ function parseAiJson(text: string): { score: number; feedback: Record<string, un
   };
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "Request timed out"): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 async function runGeminiScoringWithFallback(
   scoringPrompt: string,
   preferredModel: string,
@@ -239,7 +247,7 @@ async function runGeminiScoringWithFallback(
       });
     }
     parts.push(scoringPrompt);
-    const primaryResult = await primary.generateContent(parts);
+    const primaryResult = await withTimeout(primary.generateContent(parts), 6000, "Primary Gemini model timed out");
     const primaryText = primaryResult.response.text();
     return parseAiJson(primaryText);
   } catch (primaryError) {
@@ -262,7 +270,7 @@ async function runGeminiScoringWithFallback(
       });
     }
     parts.push(scoringPrompt);
-    const fallbackResult = await fallback.generateContent(parts);
+    const fallbackResult = await withTimeout(fallback.generateContent(parts), 6000, "Fallback Gemini model timed out");
     const fallbackText = fallbackResult.response.text();
     const parsed = parseAiJson(fallbackText);
 

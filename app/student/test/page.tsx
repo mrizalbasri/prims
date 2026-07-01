@@ -60,6 +60,15 @@ export default function StudentTestPage() {
 
   const readingPassage = useMemo(() => {
     if (!currentSection || currentSection.section !== "reading") return null;
+
+    // First priority: check metadata.passage
+    for (const question of currentSection.questions) {
+      if (question.metadata?.passage) {
+        return question.metadata.passage;
+      }
+    }
+
+    // Fallback: regex search in prompt
     for (const question of currentSection.questions) {
       const matches = [...question.prompt.matchAll(/"([^"]{50,})"/g)];
       if (matches.length > 0) return matches[0][1];

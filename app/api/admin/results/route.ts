@@ -4,15 +4,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 
-type StudentWithAttempts = Prisma.UserGetPayload<{
-  include: {
-    testAttempts: {
-      include: {
-        finalResult: true;
-      };
-    };
-  };
-}>;
+
 
 
 
@@ -48,15 +40,32 @@ export async function GET(request: NextRequest) {
       where: userFilter,
     });
 
-    // Get students with their attempts
+    // Get students with their attempts using optimized select
     const students = await prisma.user.findMany({
       where: userFilter,
-      include: {
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        major: true,
+        cohort: true,
         testAttempts: {
           orderBy: { startedAt: 'desc' },
           take: 1,
-          include: {
-            finalResult: true,
+          select: {
+            id: true,
+            status: true,
+            startedAt: true,
+            submittedAt: true,
+            completedAt: true,
+            finalResult: {
+              select: {
+                overallScore: true,
+                overallLevel: true,
+                cefrLevel: true,
+                sectionScores: true,
+              },
+            },
           },
         },
       },
@@ -66,7 +75,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format results with their test status
-    const results = students.map((stud: StudentWithAttempts) => {
+    const results = students.map((stud) => {
       const attempt = stud.testAttempts?.[0] || null;
       const rawScores = attempt?.finalResult?.sectionScores
         ? (typeof attempt.finalResult.sectionScores === 'string'

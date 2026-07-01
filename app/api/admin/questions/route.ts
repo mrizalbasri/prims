@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const difficulty = searchParams.get('difficulty');
     if (difficulty && ['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) {
-      filter.difficulty = difficulty;
+      filter.difficulty = difficulty as QuestionDifficulty;
     }
 
     const total = await prisma.question.count({ where: filter });
