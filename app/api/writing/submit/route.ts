@@ -31,6 +31,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Rate limit: mohon tunggu 30 detik di antara submisi
+    const lastSubmission = await prisma.writingSubmission.findFirst({
+      where: { userId: user.id },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    if (lastSubmission && Date.now() - new Date(lastSubmission.submittedAt).getTime() < 30 * 1000) {
+      return NextResponse.json(
+        { error: 'Mohon tunggu 30 detik sebelum mengirimkan latihan menulis lagi.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { promptId, essay: responseText } = body;
 

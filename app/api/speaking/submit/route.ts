@@ -31,6 +31,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Rate limit: mohon tunggu 30 detik di antara submisi
+    const lastSession = await prisma.speakingSession.findFirst({
+      where: { userId: user.id },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (lastSession && Date.now() - new Date(lastSession.startedAt).getTime() < 30 * 1000) {
+      return NextResponse.json(
+        { error: 'Mohon tunggu 30 detik sebelum mengirimkan latihan berbicara lagi.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { scenarioId, transcriptText, audioUrl, durationSec } = body;
 
