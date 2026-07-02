@@ -17,13 +17,15 @@ export default async function HomePage() {
     <div className="flex flex-col min-h-screen bg-gray-50 text-gray-900 overflow-x-hidden font-inter">
       {/* Navigation */}
       <LandingHeader user={user} />
+      {/* Spacer to prevent fixed navbar from overlapping hero content on page load */}
+      <div className="h-[76px] md:h-[88px] w-full flex-shrink-0" />
 
       {/* Hero Section */}
       <HeroSection user={user} />
 
       {/* University Partner Banner */}
       <section className="py-12 bg-gray-55/30 relative">
-        <ScrollReveal className="max-w-7xl mx-auto px-6">
+        <ScrollReveal direction="zoom" className="max-w-7xl mx-auto px-6">
           <div className="bg-white border border-gray-200/60 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 text-center md:text-left hover:shadow-md transition-shadow duration-300">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
@@ -46,8 +48,8 @@ export default async function HomePage() {
         {/* Subtle decorative glow */}
         <div className="absolute right-0 top-1/4 w-96 h-96 bg-teal-100/20 rounded-full blur-3xl -z-10"></div>
         
-        <ScrollReveal className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <ScrollReveal direction="right" className="space-y-8">
             <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-3.5 py-1.5 rounded-full border border-blue-100">
               <span className="material-symbols-outlined text-sm">psychology</span>
               <span className="font-hanken text-xs font-bold uppercase tracking-wider">Smart Assessment</span>
@@ -82,13 +84,13 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </ScrollReveal>
 
           {/* Interactive Placement Test Preview Component */}
-          <div>
+          <ScrollReveal direction="left">
             <PlacementTestPreview />
-          </div>
-        </ScrollReveal>
+          </ScrollReveal>
+        </div>
       </section>
 
       {/* AI-Driven Learning Section */}
@@ -156,8 +158,8 @@ export default async function HomePage() {
 
       {/* Demo Section */}
       <section id="demo-section" className="py-24 max-w-7xl mx-auto px-6">
-        <ScrollReveal className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
-          <div className="lg:col-span-5 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
+          <ScrollReveal direction="right" className="lg:col-span-5 space-y-8">
             <span className="inline-flex items-center gap-2 bg-orange-50 text-orange-600 px-3.5 py-1.5 rounded-full border border-orange-100">
               <span className="material-symbols-outlined text-sm">science</span>
               <span className="font-hanken text-xs font-bold uppercase tracking-wider">Coba Demo</span>
@@ -177,22 +179,22 @@ export default async function HomePage() {
                 Fitur Writing Assistant PRISM:
               </p>
               <ul className="list-disc list-inside space-y-1.5 text-gray-500 leading-relaxed">
-                <li>Umpan balik tata bahasa kontekstual</li>
+                <li>Umpan balik tata bahasa contextual</li>
                 <li>Penjelasan terperinci dalam Bahasa Indonesia</li>
                 <li>Kalkulasi nilai otomatis per paragraf</li>
               </ul>
             </div>
-          </div>
+          </ScrollReveal>
 
-          <div className="lg:col-span-7 w-full">
+          <ScrollReveal direction="left" className="lg:col-span-7 w-full">
             <InteractiveDemo />
-          </div>
-        </ScrollReveal>
+          </ScrollReveal>
+        </div>
       </section>
 
       {/* FAQ Section */}
       <section id="faq" className="py-24 bg-white border-t border-gray-150">
-        <ScrollReveal className="max-w-7xl mx-auto px-6">
+        <ScrollReveal direction="up" className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
             <span className="font-hanken text-xs font-bold text-blue-600 uppercase tracking-widest">
               Pertanyaan Umum
@@ -212,7 +214,7 @@ export default async function HomePage() {
       {/* Final Call to Action */}
       <section className="py-24 bg-gradient-to-br from-primary to-blue-900 text-white relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
-        <ScrollReveal className="max-w-4xl mx-auto text-center px-6 relative z-10 space-y-8">
+        <ScrollReveal direction="zoom" className="max-w-4xl mx-auto text-center px-6 relative z-10 space-y-8">
           <h2 className="font-hanken text-4xl md:text-5xl font-extrabold leading-tight">
             Siap Memulai Evaluasi Bahasa Inggris Anda?
           </h2>
