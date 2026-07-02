@@ -3,7 +3,11 @@ import path from "path";
 import crypto from "crypto";
 
 const EDGE_TTS_URL = process.env.EDGE_TTS_URL || "http://localhost:20128/v1/audio/speech";
-const EDGE_TTS_KEY = process.env.EDGE_TTS_KEY || "sk-430545e9d0f8cc2e-f88zvx-104fc62e";
+const RAW_TTS_KEY = process.env.EDGE_TTS_KEY;
+if (!RAW_TTS_KEY && process.env.NODE_ENV === "production") {
+  throw new Error("EDGE_TTS_KEY environment variable is required in production.");
+}
+const EDGE_TTS_KEY = RAW_TTS_KEY || "dev-secret-key-for-local-testing";
 const EDGE_TTS_MODEL = process.env.EDGE_TTS_MODEL || "edge-tts/en-US-GuyNeural";
 
 /**

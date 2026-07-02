@@ -33,7 +33,7 @@ async function verifyJwt(token: string, secret: string) {
     const verified = await crypto.subtle.verify(
       'HMAC',
       key,
-      base64UrlDecode(signature) as any,
+      base64UrlDecode(signature) as Uint8Array,
       encoder.encode(`${header}.${payload}`)
     );
 
@@ -54,7 +54,7 @@ async function verifyJwt(token: string, secret: string) {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value;
   const loginUrl = new URL('/login', request.url);
 
@@ -62,8 +62,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const secret = process.env.JWT_SECRET || 'dev-secret-key-for-local-testing';
-  const payload = await verifyJwt(token, secret);
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production.');
+  }
+  const jwtSecret = secret || 'dev-secret-key-for-local-testing';
+  const payload = await verifyJwt(token, jwtSecret);
 
   if (!payload || payload.role !== 'ADMIN') {
     return NextResponse.redirect(loginUrl);
