@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 
@@ -15,9 +15,24 @@ interface LandingHeaderProps {
 
 export default function LandingHeader({ user }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-150 py-4 px-6">
+    <nav
+      className={`fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
+        isScrolled
+          ? "top-4 w-[90%] max-w-5xl rounded-full bg-white/80 border border-gray-200 shadow-md py-2.5 px-8 backdrop-blur-lg"
+          : "top-0 w-full bg-white border-b border-gray-150 py-4 px-6"
+      }`}
+    >
       <div className="max-w-7xl mx-auto flex justify-between items-center">
         <div className="flex items-center">
           <Logo className="h-11 w-36" priority />
