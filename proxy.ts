@@ -33,7 +33,7 @@ async function verifyJwt(token: string, secret: string) {
     const verified = await crypto.subtle.verify(
       'HMAC',
       key,
-      base64UrlDecode(signature) as Uint8Array,
+      base64UrlDecode(signature) as any,
       encoder.encode(`${header}.${payload}`)
     );
 

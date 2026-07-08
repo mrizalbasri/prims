@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
+import ReadAlongPlayer from "@/components/student/speaking/ReadAlongPlayer";
 
 interface SpeechRecognitionInstance {
   continuous: boolean;
@@ -29,6 +31,9 @@ type SpeakingScenario = {
   scenario: string;
   level: "Beginner" | "Intermediate" | "Advanced";
   duration: number;
+  description?: string;
+  isReadAlong?: boolean;
+  targetText?: string;
 };
 
 type Session = {
@@ -56,11 +61,13 @@ export default function SpeakingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<Session | null>(null);
   const [view, setView] = useState<"scenarios" | "practice" | "history">("scenarios");
   const [recordingTime, setRecordingTime] = useState(0);
   const [recognition, setRecognition] = useState<SpeechRecognitionInstance | null>(null);
+  const [subTab, setSubTab] = useState<"conversation" | "read-along">("conversation");
 
   const [audioUrlState, setAudioUrlState] = useState<string | null>(null);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -201,6 +208,9 @@ export default function SpeakingPage() {
   async function handleSubmit() {
     if (!selectedScenario || (!transcript.trim() && !audioUrlState)) return;
 
+    // Auto-stop mic before submitting
+    if (isRecording) await stopRecording();
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/speaking/submit", {
@@ -275,6 +285,85 @@ export default function SpeakingPage() {
 
     } catch (err) {
       console.error("Submit speaking score error:", err);
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleReadAlongSubmit(transcriptText: string, audioUrl: string | null, durationSec: number) {
+    if (!selectedScenario || (!transcriptText.trim() && !audioUrl)) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/speaking/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scenarioId: selectedScenario.id,
+          transcriptText,
+          audioUrl,
+          durationSec
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Gagal mengirimkan latihan membaca.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const data = await res.json();
+      const sessionId = data.session?.id;
+
+      if (!sessionId) {
+        alert("Gagal memproses ID sesi.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/speaking/sessions?id=${sessionId}`);
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData && statusData.session) {
+              const s = statusData.session;
+              if (s.status === "COMPLETED") {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                setResult({
+                  id: s.id,
+                  score: s.scores?.overall ?? 0,
+                  scores: s.scores,
+                  feedback: s.feedback,
+                  submittedAt: s.completedAt || s.startedAt,
+                  scenario: s.scenario
+                });
+                setShowResult(true);
+                setIsSubmitting(false);
+
+                // Refresh history list
+                const historyRes = await fetch("/api/speaking/sessions");
+                if (historyRes.ok) {
+                  const historyData = await historyRes.json();
+                  const mapped = (historyData.sessions || []).map((sess: any) => ({
+                    ...sess,
+                    score: sess.overallScore ?? sess.score ?? 0,
+                  }));
+                  setSessions(mapped);
+                }
+              } else if (s.status === "FAILED") {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                alert("Evaluasi AI gagal. Silakan coba lagi.");
+                setIsSubmitting(false);
+              }
+            }
+          }
+        } catch (pollErr) {
+          console.error("Error polling speaking session:", pollErr);
+        }
+      }, 3000);
+
+    } catch (err) {
+      console.error("Submit read-along score error:", err);
       setIsSubmitting(false);
     }
   }
@@ -361,36 +450,47 @@ export default function SpeakingPage() {
     setView("scenarios");
   }
 
-  async function toggleRecording() {
-    if (isRecording) {
+  // Stop mic entirely and upload — called by both submit and unmount
+  function stopRecording(): Promise<void> {
+    return new Promise((resolve) => {
       if (recognition) {
-        try {
-          recognition.stop();
-        } catch (e) {
-          console.error(e);
+        try { recognition.stop(); } catch (e) { console.error(e); }
+      }
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== "inactive") {
+        const originalOnStop = mr.onstop;
+        mr.onstop = async (e) => {
+          if (originalOnStop) await (originalOnStop as (e: Event) => Promise<void>)(e);
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((t) => t.stop());
+            streamRef.current = null;
+          }
+          setIsRecording(false);
+          setIsPaused(false);
+          resolve();
+        };
+        mr.stop();
+      } else {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
         }
+        setIsRecording(false);
+        setIsPaused(false);
+        resolve();
       }
+    });
+  }
 
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-
-      setIsRecording(false);
-    } else {
+  async function toggleRecording() {
+    if (!isRecording) {
+      // Start fresh
       setTranscript("");
       setAudioUrlState(null);
+      setIsPaused(false);
 
       if (recognition) {
-        try {
-          recognition.start();
-        } catch (err) {
-          console.error("Failed to start speech recognition:", err);
-        }
+        try { recognition.start(); } catch (err) { console.error("Failed to start speech recognition:", err); }
       }
 
       try {
@@ -401,9 +501,7 @@ export default function SpeakingPage() {
         audioChunksRef.current = [];
 
         mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
+          if (event.data.size > 0) audioChunksRef.current.push(event.data);
         };
 
         mediaRecorder.onstop = async () => {
@@ -412,17 +510,10 @@ export default function SpeakingPage() {
           try {
             const formData = new FormData();
             formData.append("file", audioBlob, "recording.webm");
-            
-            const uploadRes = await fetch("/api/upload", {
-              method: "POST",
-              body: formData,
-            });
-            
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
             if (uploadRes.ok) {
               const uploadData = await uploadRes.json();
               setAudioUrlState(uploadData.url);
-            } else {
-              console.error("Failed to upload audio file");
             }
           } catch (uploadErr) {
             console.error("Error uploading audio file:", uploadErr);
@@ -435,10 +526,18 @@ export default function SpeakingPage() {
         setIsRecording(true);
       } catch (err) {
         console.error("Failed to start MediaRecorder:", err);
-        if (!recognition) {
-          alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
-        }
+        if (!recognition) alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
       }
+    } else if (isPaused) {
+      // Resume
+      if (mediaRecorderRef.current?.state === "paused") mediaRecorderRef.current.resume();
+      if (recognition) try { recognition.start(); } catch (e) { console.error(e); }
+      setIsPaused(false);
+    } else {
+      // Pause
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.pause();
+      if (recognition) try { recognition.stop(); } catch (e) { console.error(e); }
+      setIsPaused(true);
     }
   }
 
@@ -465,7 +564,9 @@ export default function SpeakingPage() {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center">
+              <Logo className="h-8 w-24" />
+            </Link>
             <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-red-200/50 dark:border-red-800/20">
               Speaking Practice
             </span>
@@ -497,8 +598,7 @@ export default function SpeakingPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">
-        {/* Scenarios grid view */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">        {/* Scenarios grid view */}
         {view === "scenarios" && (
           <div className="space-y-8">
             <div className="space-y-1">
@@ -509,186 +609,233 @@ export default function SpeakingPage() {
               </p>
             </div>
 
-            {scenarios.length === 0 ? (
+            {/* Sub-tab selection */}
+            <div className="flex border-b border-gray-200 dark:border-gray-800 gap-6">
+              <button
+                onClick={() => setSubTab("conversation")}
+                className={`pb-3 font-hanken text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${
+                  subTab === "conversation"
+                    ? "border-red-600 text-red-600 dark:text-red-400"
+                    : "border-transparent text-gray-450 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+              >
+                Simulasi Percakapan
+              </button>
+              <button
+                onClick={() => setSubTab("read-along")}
+                className={`pb-3 font-hanken text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${
+                  subTab === "read-along"
+                    ? "border-red-600 text-red-600 dark:text-red-400"
+                    : "border-transparent text-gray-450 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+              >
+                Membaca Teks Berjalan
+              </button>
+            </div>
+
+            {scenarios.filter((s: any) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong).length === 0 ? (
               <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
                 <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">mic</span>
-                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Skenario</h2>
+                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">
+                  {subTab === "read-along" ? "Belum Ada Teks Berjalan" : "Belum Ada Skenario"}
+                </h2>
                 <p className="font-inter text-sm text-gray-405 dark:text-gray-500 max-w-xs mx-auto">
-                  Skenario berbicara lisan belum dimuat dalam sistem.
+                  {subTab === "read-along"
+                    ? "Teks berjalan belum dimuat dalam sistem."
+                    : "Skenario berbicara lisan belum dimuat dalam sistem."}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {scenarios.map((scenario) => (
-                  <div key={scenario.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-red-500/40 transition-all flex flex-col justify-between group">
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          scenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
-                          scenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
-                          "bg-red-50 text-red-600 dark:bg-red-500/10"
-                        }`}>
-                          {scenario.level}
-                        </span>
-                        <span className="material-symbols-outlined text-red-600">mic</span>
+                {scenarios
+                  .filter((s: any) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong)
+                  .map((scenario) => (
+                    <div key={scenario.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-red-500/40 transition-all flex flex-col justify-between group">
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            scenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
+                            scenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
+                            "bg-red-50 text-red-600 dark:bg-red-500/10"
+                          }`}>
+                            {scenario.level}
+                          </span>
+                          <span className="material-symbols-outlined text-red-600">mic</span>
+                        </div>
+                        
+                        <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white group-hover:text-red-600 transition-colors">
+                          {scenario.title}
+                        </h3>
+                        <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+                          {scenario.scenario || scenario.description}
+                        </p>
                       </div>
                       
-                      <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white group-hover:text-red-600 transition-colors">
-                        {scenario.title}
-                      </h3>
-                      <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
-                        {scenario.scenario}
-                      </p>
+                      <div className="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
+                        <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">timer</span>
+                          Maks. {scenario.duration} detik
+                        </span>
+                        <button
+                          onClick={() => startNewPractice(scenario)}
+                          className="flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken text-xs font-bold px-4 py-2.5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
+                        >
+                          Mulai Praktik
+                          <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                        </button>
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
-                      <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">timer</span>
-                        Maks. {scenario.duration} detik
-                      </span>
-                      <button
-                        onClick={() => startNewPractice(scenario)}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken text-xs font-bold px-4 py-2.5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
-                      >
-                        Mulai Praktik
-                        <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
         )}
-
         {/* Recording / Speaking Interface */}
         {view === "practice" && selectedScenario && !showResult && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <button
-              onClick={resetAndGoBack}
-              className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">arrow_back</span>
-              Kembali ke Skenario
-            </button>
-            
-            <div className="bg-red-50/50 dark:bg-red-500/5 border border-red-200/50 rounded-2xl p-6 space-y-4">
-              <div className="flex items-start gap-4">
-                <span className="material-symbols-outlined text-red-600 text-3xl p-2 rounded-xl bg-red-500/10">campaign</span>
-                <div className="flex-1 space-y-1">
-                  <h2 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">{selectedScenario.title}</h2>
-                  <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{selectedScenario.scenario}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-xs text-gray-450 dark:text-gray-400 pt-3 border-t border-red-200/30">
-                <span className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base text-gray-400">timer</span>
-                  Waktu Skenario: {selectedScenario.duration} detik
-                </span>
-                <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-                  selectedScenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
-                  selectedScenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
-                  "bg-red-50 text-red-600 dark:bg-red-500/10"
-                }`}>
-                  {selectedScenario.level}
-                </span>
-              </div>
-            </div>
-
-            {isSubmitting ? (
-              <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-6 py-14 animate-fadeIn">
-                <div className="relative w-20 h-20">
-                  <div className="absolute inset-0 rounded-full border-4 border-red-100 dark:border-red-950" />
-                  <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin" />
-                  <div className="absolute inset-2 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center animate-pulse">
-                    <span className="material-symbols-outlined text-3xl text-red-600 dark:text-red-400 animate-pulse">smart_toy</span>
+          (selectedScenario as any).isReadAlong ? (
+            <ReadAlongPlayer
+              scenario={{
+                id: selectedScenario.id,
+                title: selectedScenario.title,
+                description: selectedScenario.description || selectedScenario.scenario || "",
+                targetText: selectedScenario.targetText || selectedScenario.scenario || "",
+                duration: selectedScenario.duration,
+                level: selectedScenario.level,
+              }}
+              onBack={resetAndGoBack}
+              onSubmit={handleReadAlongSubmit}
+              isSubmitting={isSubmitting}
+            />
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-6">
+              <button
+                onClick={resetAndGoBack}
+                className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                Kembali ke Skenario
+              </button>
+              
+              <div className="bg-red-50/50 dark:bg-red-500/5 border border-red-200/50 rounded-2xl p-6 space-y-4">
+                <div className="flex items-start gap-4">
+                  <span className="material-symbols-outlined text-red-600 text-3xl p-2 rounded-xl bg-red-500/10">campaign</span>
+                  <div className="flex-1 space-y-1">
+                    <h2 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">{selectedScenario.title}</h2>
+                    <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{selectedScenario.scenario}</p>
                   </div>
                 </div>
-                <div className="text-center space-y-2">
-                  <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">AI Sedang Mengevaluasi Suara Anda</h3>
-                  <p className="font-inter text-xs text-gray-450 dark:text-gray-550 max-w-xs mx-auto leading-relaxed">
-                    Sistem sedang menganalisis kefasihan lisan, pengucapan, tata bahasa, dan konteks jawaban Anda. Proses ini memerlukan beberapa saat.
-                  </p>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-gray-450 dark:text-gray-400 pt-3 border-t border-red-200/30">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-base text-gray-400">timer</span>
+                    Waktu Skenario: {selectedScenario.duration} detik
+                  </span>
+                  <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                    selectedScenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
+                    selectedScenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
+                    "bg-red-50 text-red-600 dark:bg-red-500/10"
+                  }`}>
+                    {selectedScenario.level}
+                  </span>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-8 py-14">
-                  <div className="relative">
-                    {isRecording && (
-                      <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150 -z-10"></div>
-                    )}
+
+              {isSubmitting ? (
+                <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-6 py-14 animate-fadeIn">
+                  <div className="relative w-20 h-20">
+                    <div className="absolute inset-0 rounded-full border-4 border-red-100 dark:border-red-950" />
+                    <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin" />
+                    <div className="absolute inset-2 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center animate-pulse">
+                      <span className="material-symbols-outlined text-3xl text-red-600 dark:text-red-400 animate-pulse">smart_toy</span>
+                    </div>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">AI Sedang Mengevaluasi Suara Anda</h3>
+                    <p className="font-inter text-xs text-gray-450 dark:text-gray-555 max-w-xs mx-auto leading-relaxed">
+                      Sistem sedang menganalisis kefasihan lisan, pengucapan, tata bahasa, dan konteks jawaban Anda. Proses ini memerlukan beberapa saat.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center justify-center space-y-8 py-14">
+                    <div className="relative">
+                      {isRecording && (
+                        <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping scale-150 -z-10"></div>
+                      )}
+                      <button
+                        onClick={() => void toggleRecording()}
+                        className={`w-32 h-32 rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 cursor-pointer border-0 ${
+                          isRecording && !isPaused
+                            ? "bg-red-600 text-white shadow-red-500/30"
+                            : isPaused
+                            ? "bg-amber-500 text-white shadow-amber-500/30"
+                            : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-gray-200 dark:shadow-none"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          {isRecording && !isPaused ? "pause" : isPaused ? "play_circle" : "mic"}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="text-center space-y-2">
+                      <h3 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">
+                        {isRecording && !isPaused ? "Sedang Merekam Audio..." : isPaused ? "Rekaman Dijeda" : "Mulai Rekam Suara"}
+                      </h3>
+                      
+                      {isRecording ? (
+                        <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">
+                          {formatTime(recordingTime)}
+                        </p>
+                      ) : (
+                        <div className="space-y-2 text-center">
+                          <p className="font-inter text-sm text-gray-400 dark:text-gray-555 max-w-sm mx-auto leading-relaxed">
+                            Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
+                          </p>
+                          {isUploadingAudio && (
+                            <p className="text-xs text-blue-500 font-semibold animate-pulse">
+                              Menyimpan rekaman suara Anda ke server...
+                            </p>
+                          )}
+                          {audioUrlState && !isRecording && (
+                            <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                              Rekaman suara disimpan! Silakan periksa transkrip (opsional) lalu kirim.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="w-full max-w-xl pt-6 border-t border-gray-100 dark:border-gray-800 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-hanken text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                          Transkrip Jawaban Lisan Anda
+                        </h4>
+                        <span className="text-[10px] text-gray-400 font-inter font-semibold">(Diperlukan untuk penilaian AI)</span>
+                      </div>
+                      <textarea
+                        value={transcript}
+                        onChange={(e) => setTranscript(e.target.value)}
+                        className="w-full min-h-[140px] p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-850 text-gray-900 dark:text-white text-sm font-inter focus:outline-none focus:ring-2 focus:ring-red-600/30 resize-none leading-relaxed"
+                        placeholder="Ketik transkrip dari apa yang Anda bicarakan di sini..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
                     <button
-                      onClick={toggleRecording}
-                      className={`w-32 h-32 rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 cursor-pointer border-0 ${
-                        isRecording 
-                          ? "bg-red-600 text-white shadow-red-500/30" 
-                          : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-gray-200 dark:shadow-none"
-                      }`}
+                      onClick={() => void handleSubmit()}
+                      disabled={isSubmitting || isUploadingAudio || (!transcript.trim() && !audioUrlState)}
+                      className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer border-0"
                     >
-                      <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                        {isRecording ? "stop" : "mic"}
-                      </span>
+                      <span className="material-symbols-outlined">send</span>
+                      {isUploadingAudio ? "Mengunggah rekaman..." : "Kirim Jawaban Speaking"}
                     </button>
                   </div>
-
-                  <div className="text-center space-y-2">
-                    <h3 className="font-hanken text-xl font-bold text-gray-900 dark:text-white">
-                      {isRecording ? "Sedang Merekam Audio..." : "Mulai Rekam Suara"}
-                    </h3>
-                    
-                    {isRecording ? (
-                      <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">
-                        {formatTime(recordingTime)}
-                      </p>
-                    ) : (
-                      <div className="space-y-2 text-center">
-                        <p className="font-inter text-sm text-gray-400 dark:text-gray-555 max-w-sm mx-auto leading-relaxed">
-                          Klik tombol mikrofon di atas untuk berbicara. Setelah selesai berbicara, tekan kembali untuk berhenti.
-                        </p>
-                        {isUploadingAudio && (
-                          <p className="text-xs text-blue-500 font-semibold animate-pulse">
-                            Menyimpan rekaman suara Anda ke server...
-                          </p>
-                        )}
-                        {audioUrlState && !isRecording && (
-                          <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
-                            Rekaman suara disimpan! Silakan periksa transkrip (opsional) lalu kirim.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="w-full max-w-xl pt-6 border-t border-gray-100 dark:border-gray-800 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-hanken text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                        Transkrip Jawaban Lisan Anda
-                      </h4>
-                      <span className="text-[10px] text-gray-400 font-inter font-semibold">(Diperlukan untuk penilaian AI)</span>
-                    </div>
-                    <textarea
-                      value={transcript}
-                      onChange={(e) => setTranscript(e.target.value)}
-                      className="w-full min-h-[140px] p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-850 text-gray-900 dark:text-white text-sm font-inter focus:outline-none focus:ring-2 focus:ring-red-600/30 resize-none leading-relaxed"
-                      placeholder="Ketik transkrip dari apa yang Anda bicarakan di sini..."
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    onClick={() => void handleSubmit()}
-                    disabled={isSubmitting || isUploadingAudio || (!transcript.trim() && !audioUrlState)}
-                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken font-bold px-8 py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer border-0"
-                  >
-                    <span className="material-symbols-outlined">send</span>
-                    {isUploadingAudio ? "Mengunggah rekaman..." : "Kirim Jawaban Speaking"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          )
         )}
 
         {/* AI response results view */}
