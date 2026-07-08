@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 type WritingPrompt = {
   id: string;
@@ -266,7 +267,9 @@ export default function WritingPage() {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center">
+              <Logo className="h-8 w-24" />
+            </Link>
             <span className="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-orange-200/50 dark:border-orange-800/20">
               Writing Practice
             </span>
@@ -469,7 +472,7 @@ export default function WritingPage() {
               </div>
 
               {result.scores && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     { label: "Grammar", val: result.scores.grammar, color: "text-purple-600 dark:text-purple-400" },
                     { label: "Clarity/Content", val: result.scores.clarity, color: "text-green-600 dark:text-green-400" },

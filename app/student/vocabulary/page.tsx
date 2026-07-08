@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 type VocabularyCard = {
   id: string;
@@ -26,7 +27,9 @@ export default function VocabularyPage() {
   const [cards, setCards] = useState<VocabularyCard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [category, setCategory] = useState<string>("ALL");
   const [sessionStats, setSessionStats] = useState<SessionStats>({
     cardsReviewed: 0,
     correctAnswers: 0,
@@ -35,27 +38,49 @@ export default function VocabularyPage() {
   const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
-    async function loadCards() {
-      try {
-        const res = await fetch("/api/vocabulary/cards");
-        if (!res.ok) {
-          if (res.status === 401) router.push("/login");
-          if (res.status === 403) router.push("/student");
-          setIsLoading(false);
-          return;
-        }
-
-        const data = await res.json();
-        setCards(data.cards || []);
-      } catch (err) {
-        console.error("Failed to load cards:", err);
-      } finally {
-        setIsLoading(false);
+    async function checkAuth() {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
+        router.push("/login");
       }
     }
-
-    void loadCards();
+    void checkAuth();
   }, [router]);
+
+  async function startSession() {
+    setIsLoading(true);
+    setSessionStarted(true);
+    try {
+      const url = category === 'ALL' 
+        ? "/api/vocabulary/cards" 
+        : `/api/vocabulary/cards?category=${category}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        if (res.status === 401) router.push("/login");
+        if (res.status === 403) router.push("/student");
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const mappedCards = (data.cards || []).map((card: any) => ({
+        id: card.id,
+        word: card.term,
+        definition: card.meaning,
+        example: card.exampleSentence || "",
+        level: card.difficulty === 'HARD' ? 'Advanced' :
+               card.difficulty === 'MEDIUM' ? 'Intermediate' : 'Beginner',
+        reviewCount: card.progress?.repetitionCount || 0,
+        lastReviewed: card.progress?.lastReviewedAt || null,
+        nextReview: null
+      }));
+      setCards(mappedCards);
+    } catch (err) {
+      console.error("Failed to load cards:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const currentCard = cards[currentCardIndex];
   const progress = cards.length > 0 ? Math.round(((currentCardIndex + 1) / cards.length) * 100) : 0;
@@ -69,7 +94,8 @@ export default function VocabularyPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           cardId: currentCard.id,
-          quality
+          quality,
+          correct: quality >= 3
         })
       });
 
@@ -97,6 +123,7 @@ export default function VocabularyPage() {
     setCurrentCardIndex(0);
     setIsFlipped(false);
     setShowResults(false);
+    setSessionStarted(false);
     setSessionStats({
       cardsReviewed: 0,
       correctAnswers: 0,
@@ -124,7 +151,9 @@ export default function VocabularyPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
         <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center">
+              <Logo className="h-8 w-24" />
+            </Link>
             <Link href="/student" className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-inter text-sm font-semibold cursor-pointer">
               <span className="material-symbols-outlined text-lg">arrow_back</span>
               Dashboard
@@ -142,7 +171,7 @@ export default function VocabularyPage() {
               <p className="font-inter text-sm text-gray-400 dark:text-gray-300">Pekerjaan luar biasa! Ingatan Anda berkembang semakin kuat.</p>
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
                 <span className="material-symbols-outlined text-2xl text-blue-600 mb-1.5 inline-block">style</span>
                 <p className="font-mono text-2xl font-black text-gray-900 dark:text-white">{sessionStats.cardsReviewed}</p>
@@ -181,12 +210,83 @@ export default function VocabularyPage() {
     );
   }
 
+  if (!sessionStarted) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
+        <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <Link href="/student" className="flex items-center">
+              <Logo className="h-8 w-24" />
+            </Link>
+            <Link href="/student" className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-inter text-sm font-semibold cursor-pointer">
+              <span className="material-symbols-outlined text-lg">arrow_back</span>
+              Dashboard
+            </Link>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-12 flex flex-col justify-center">
+          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 text-center shadow-xl space-y-8 animate-fadeIn">
+            <div className="space-y-3">
+              <span className="material-symbols-outlined text-6xl text-blue-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+                style
+              </span>
+              <h1 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Latihan Kosakata</h1>
+              <p className="font-inter text-sm text-gray-505 dark:text-gray-400">
+                Pilih kategori kosa kata akademik yang ingin Anda pelajari hari ini.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+              {[
+                { id: 'ALL', label: 'Semua Kategori', icon: 'all_inclusive', desc: 'Pelajari semua kategori kata' },
+                { id: 'ACADEMIC', label: 'Academic', icon: 'history_edu', desc: 'Kata umum perkuliahan & jurnal' },
+                { id: 'BUSINESS', label: 'Business', icon: 'business_center', desc: 'Kata presentasi & negosiasi' },
+                { id: 'TECHNICAL', label: 'Technical', icon: 'terminal', desc: 'Kosakata teknis & sains' }
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategory(cat.id)}
+                  type="button"
+                  className={`p-5 rounded-2xl border text-left transition-all flex flex-col gap-3 group cursor-pointer ${
+                    category === cat.id 
+                      ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-500/10' 
+                      : 'border-gray-150 dark:border-gray-700 hover:border-blue-300 bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  <span className={`material-symbols-outlined text-2xl ${category === cat.id ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`}>
+                    {cat.icon}
+                  </span>
+                  <div>
+                    <h4 className="font-hanken font-bold text-sm text-gray-900 dark:text-white">{cat.label}</h4>
+                    <p className="font-inter text-[10px] text-gray-450 dark:text-gray-500 leading-normal">{cat.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={startSession}
+              type="button"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-hanken text-base font-bold py-4 rounded-xl hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 animate-fadeIn"
+            >
+              <span className="material-symbols-outlined">play_arrow</span>
+              Mulai Sesi Belajar
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (cards.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
         <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center">
+              <Logo className="h-8 w-24" />
+            </Link>
             <Link href="/student" className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-inter text-sm font-semibold cursor-pointer">
               <span className="material-symbols-outlined text-lg">arrow_back</span>
               Dashboard
@@ -219,7 +319,9 @@ export default function VocabularyPage() {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/student" className="font-hanken text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">PRISM</Link>
+            <Link href="/student" className="flex items-center">
+              <Logo className="h-8 w-24" />
+            </Link>
             <span className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-200/50 dark:border-blue-800/20">
               Vocabulary Flashcards
             </span>
@@ -324,7 +426,7 @@ export default function VocabularyPage() {
                 <p className="text-center font-hanken text-sm font-bold text-gray-700 dark:text-gray-300">
                   Seberapa baik Anda mengingat kata ini?
                 </p>
-                <div className="grid grid-cols-5 gap-2.5 sm:gap-4">
+                <div className="grid grid-cols-5 gap-1.5 sm:gap-4">
                   {[
                     { quality: 1, label: "Lupa", color: "bg-red-500 hover:bg-red-600 shadow-red-200/50 hover:shadow-red-500/20", icon: "sentiment_very_dissatisfied" },
                     { quality: 2, label: "Sulit", color: "bg-orange-500 hover:bg-orange-600 shadow-orange-200/50 hover:shadow-orange-500/20", icon: "sentiment_dissatisfied" },
@@ -335,12 +437,12 @@ export default function VocabularyPage() {
                     <button
                       key={option.quality}
                       onClick={() => handleReview(option.quality as 1 | 2 | 3 | 4 | 5)}
-                      className={`${option.color} text-white rounded-2xl p-3 sm:p-4 transition-all shadow-md hover:shadow-lg flex flex-col items-center gap-1.5 group cursor-pointer hover:-translate-y-0.5`}
+                      className={`${option.color} text-white rounded-xl p-2 sm:p-4 transition-all shadow-md hover:shadow-lg flex flex-col items-center gap-1 group cursor-pointer hover:-translate-y-0.5`}
                     >
-                      <span className="material-symbols-outlined text-2xl sm:text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined text-xl sm:text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                         {option.icon}
                       </span>
-                      <span className="font-hanken text-[10px] sm:text-xs font-bold">{option.label}</span>
+                      <span className="font-hanken text-[9px] sm:text-xs font-bold">{option.label}</span>
                     </button>
                   ))}
                 </div>

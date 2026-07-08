@@ -369,7 +369,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
         </div>
 
         {/* Right: Controls & Parameters */}
-        <div className="w-full md:w-80 flex flex-col justify-between gap-6 border-l border-gray-100 dark:border-gray-800 pl-0 md:pl-8">
+        <div className="w-full md:w-80 flex flex-col justify-between gap-6 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-800 pt-6 md:pt-0 pl-0 md:pl-8">
           {/* Mode selectors */}
           <div className="space-y-6">
             <div className="space-y-2">

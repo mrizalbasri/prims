@@ -610,10 +610,10 @@ export default function SpeakingPage() {
             </div>
 
             {/* Sub-tab selection */}
-            <div className="flex border-b border-gray-200 dark:border-gray-800 gap-6">
+            <div className="flex border-b border-gray-200 dark:border-gray-800 gap-6 overflow-x-auto whitespace-nowrap scrollbar-none">
               <button
                 onClick={() => setSubTab("conversation")}
-                className={`pb-3 font-hanken text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${
+                className={`pb-3 font-hanken text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all flex-shrink-0 ${
                   subTab === "conversation"
                     ? "border-red-600 text-red-600 dark:text-red-400"
                     : "border-transparent text-gray-450 hover:text-gray-700 dark:hover:text-gray-300"
@@ -623,7 +623,7 @@ export default function SpeakingPage() {
               </button>
               <button
                 onClick={() => setSubTab("read-along")}
-                className={`pb-3 font-hanken text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${
+                className={`pb-3 font-hanken text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all flex-shrink-0 ${
                   subTab === "read-along"
                     ? "border-red-600 text-red-600 dark:text-red-400"
                     : "border-transparent text-gray-450 hover:text-gray-700 dark:hover:text-gray-300"
@@ -854,7 +854,7 @@ export default function SpeakingPage() {
               </div>
 
               {result.scores && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     { label: "Fluency", val: result.scores.fluency, color: "text-red-600 dark:text-red-400" },
                     { label: "Pronunciation", val: result.scores.pronunciation, color: "text-blue-600 dark:text-blue-400" },
