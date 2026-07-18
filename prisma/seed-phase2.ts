@@ -8,6 +8,11 @@ async function main() {
   // ============================================
   // VOCABULARY CARDS
   // ============================================
+  console.log('🗑️  Clearing existing Phase 2 data...');
+  await prisma.vocabularyCard.deleteMany({});
+  await prisma.writingPrompt.deleteMany({});
+  await prisma.speakingScenario.deleteMany({});
+
   console.log('📚 Seeding vocabulary cards...');
   
   for (const card of academicVocabularyCards) {
