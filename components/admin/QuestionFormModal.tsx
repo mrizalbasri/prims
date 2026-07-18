@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 type QuestionRow = {
   id: string;
@@ -47,6 +48,12 @@ export default function QuestionFormModal({
   initialAudioUrl = "",
   initialDifficulty = "EASY",
 }: QuestionFormModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [formSectionType, setFormSectionType] = useState<"VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING">(
     editingQuestion ? (editingQuestion.sectionType as "VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING") : (fixedSection || "VOCABULARY")
   );
@@ -76,10 +83,11 @@ export default function QuestionFormModal({
   const [aiGeneratedQuestions, setAiGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [listeningSourceType, setListeningSourceType] = useState<"URL" | "SCRIPT">("URL");
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [voiceOption, setVoiceOption] = useState("edge-tts/en-US-GuyNeural");
 
   const previewRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   // Save/Update question submit handler
   async function handleSaveQuestion(e: React.FormEvent) {
@@ -165,6 +173,7 @@ export default function QuestionFormModal({
           difficulty: formDifficulty,
           promptInput: formPromptInput,
           listeningSourceType: formSectionType === "LISTENING" ? listeningSourceType : undefined,
+          voiceOption: formSectionType === "LISTENING" && listeningSourceType === "SCRIPT" ? voiceOption : undefined,
         }),
       });
 
@@ -215,9 +224,21 @@ export default function QuestionFormModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-slate-955/40 dark:bg-slate-950/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white dark:bg-gray-855 rounded-3xl shadow-xl border border-gray-150 dark:border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-scaleIn">
+  return createPortal(
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop Overlay (closes modal on click) */}
+      <div 
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-950/40 dark:bg-slate-950/60 backdrop-blur-md transition-opacity"
+      />
+
+      {/* Centering Wrapper */}
+      <div className="flex min-h-full items-center justify-center py-8 px-4 relative pointer-events-none animate-fadeIn">
+        {/* Modal Card */}
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white dark:bg-gray-850 rounded-3xl shadow-xl border border-gray-155 dark:border-gray-700 max-w-2xl w-full pointer-events-auto relative"
+        >
         
         {/* Header */}
         <div className="p-6 border-b border-gray-150 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/20">
@@ -240,7 +261,7 @@ export default function QuestionFormModal({
               onClick={() => setModalMode("MANUAL")}
               className={`px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer bg-transparent border-0 ${
                 modalMode === "MANUAL"
-                  ? "border-blue-600 text-blue-650 dark:text-blue-450 font-extrabold"
+                  ? "border-blue-600 text-blue-600 dark:text-blue-400 font-extrabold"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -251,7 +272,7 @@ export default function QuestionFormModal({
               onClick={() => setModalMode("AI")}
               className={`px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer bg-transparent border-0 ${
                 modalMode === "AI"
-                  ? "border-blue-600 text-blue-650 dark:text-blue-450 font-extrabold"
+                  ? "border-blue-600 text-blue-600 dark:text-blue-400 font-extrabold"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -324,6 +345,25 @@ export default function QuestionFormModal({
               </div>
             )}
 
+            {/* Voice Selection Option */}
+            {formSectionType === "LISTENING" && listeningSourceType === "SCRIPT" && (
+              <div className="space-y-2 text-left mb-4">
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">Pilih Pengisi Suara (Accent & Speaker)</label>
+                <select
+                  value={voiceOption}
+                  onChange={(e) => setVoiceOption(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
+                >
+                  <option value="edge-tts/en-US-GuyNeural">Laki-laki (Amerika) - Guy</option>
+                  <option value="edge-tts/en-US-JennyNeural">Perempuan (Amerika) - Jenny</option>
+                  <option value="edge-tts/en-GB-RyanNeural">Laki-laki (Inggris / UK) - Ryan</option>
+                  <option value="edge-tts/en-GB-SoniaNeural">Perempuan (Inggris / UK) - Sonia</option>
+                  <option value="edge-tts/en-AU-WilliamNeural">Laki-laki (Australia) - William</option>
+                  <option value="edge-tts/en-AU-NatashaNeural">Perempuan (Australia) - Natasha</option>
+                </select>
+              </div>
+            )}
+
             {/* Prompt Input */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
@@ -349,7 +389,7 @@ export default function QuestionFormModal({
               />
               <span className="text-[10px] text-gray-450 dark:text-gray-500 block leading-normal">
                 {formSectionType === "LISTENING" && listeningSourceType === "SCRIPT"
-                  ? "✨ Ketik script dialog (misal: 'Professor: Hello class...'). Sistem otomatis akan men-convert teks ini menjadi file audio pengucap native speaker akademik (.mp3) lewat layanan Google TTS."
+                  ? "✨ Ketik script dialog (misal: 'Professor: Hello class...'). Sistem otomatis akan mengonversi teks ini menjadi file audio pengucap native speaker beraksen pilihan Anda (.mp3) lewat Edge TTS."
                   : "💡 Gunakan petunjuk detail dalam bahasa Inggris atau Indonesia. AI akan menghasilkan paket berisi 3 hingga 5 soal pilihan ganda sekaligus."}
               </span>
             </div>
@@ -367,7 +407,7 @@ export default function QuestionFormModal({
                 type="button"
                 disabled={isAiGenerating}
                 onClick={() => void handleGenerateAIQuestions()}
-                className="bg-blue-650 hover:bg-blue-750 text-white font-hanken font-bold text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-hanken font-bold text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-0"
               >
                 {isAiGenerating ? (
                   <>
@@ -408,7 +448,7 @@ export default function QuestionFormModal({
 
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
                   {aiGeneratedQuestions.map((q, idx) => (
-                    <div key={idx} className="bg-gray-50/50 dark:bg-gray-900/30 rounded-2xl border border-gray-250 dark:border-gray-850 p-5 space-y-4 font-inter text-left">
+                    <div key={idx} className="bg-gray-50/50 dark:bg-gray-900/30 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 font-inter text-left">
                       <div className="flex justify-between items-start gap-4">
                         <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-mono text-xs font-bold flex items-center justify-center flex-shrink-0">
                           {idx + 1}
@@ -610,7 +650,7 @@ export default function QuestionFormModal({
               </button>
               <button
                 type="submit"
-                className="bg-blue-650 hover:bg-blue-750 text-white font-hanken font-bold text-xs px-6 py-2.5 rounded-xl hover:shadow-lg transition-all cursor-pointer border-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-hanken font-bold text-xs px-6 py-2.5 rounded-xl hover:shadow-lg transition-all cursor-pointer border-0"
               >
                 Simpan Soal
               </button>
@@ -619,5 +659,7 @@ export default function QuestionFormModal({
         )}
       </div>
     </div>
+  </div>,
+  document.body
   );
 }

@@ -38,6 +38,16 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
   const [initialAudioUrl, setInitialAudioUrl] = useState("");
   const [initialDifficulty, setInitialDifficulty] = useState("EASY");
 
+  // Track expanded state for listening audio groups
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroupExpand = (audioUrl: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [audioUrl]: !prev[audioUrl],
+    }));
+  };
+
   const [prevFixedSection, setPrevFixedSection] = useState(fixedSection);
   if (fixedSection !== prevFixedSection) {
     setPrevFixedSection(fixedSection);
@@ -152,6 +162,36 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
     setIsQuestionModalOpen(true);
   }
 
+  // Delete all questions in a listening group (entire audio group)
+  async function handleDeleteAudioGroup(questionsToDelete: QuestionRow[]) {
+    if (
+      !confirm(
+        `Apakah Anda yakin ingin menghapus audio ini beserta seluruh (${questionsToDelete.length}) pertanyaan di dalamnya secara permanen?`
+      )
+    ) {
+      return;
+    }
+    setIsQuestionsLoading(true);
+    try {
+      const deletePromises = questionsToDelete.map((q) =>
+        fetch(`/api/admin/questions/${q.id}`, { method: "DELETE" })
+      );
+      const results = await Promise.all(deletePromises);
+      const allOk = results.every((res) => res.ok);
+      if (allOk) {
+        alert("Seluruh kelompok soal audio berhasil dihapus!");
+      } else {
+        alert("Sebagian soal gagal dihapus. Silakan refresh halaman.");
+      }
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Delete audio group error:", err);
+      alert("Terjadi kesalahan sistem saat menghapus kelompok audio.");
+    } finally {
+      setIsQuestionsLoading(false);
+    }
+  }
+
   // Open add modal pre-filled for a specific audio URL
   function handleOpenAddModalForAudio(audioUrl: string, difficulty: string) {
     setEditingQuestion(null);
@@ -223,7 +263,7 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
 
             {/* Difficulty Filter */}
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Kesulitan:</span>
+              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-555 uppercase tracking-wider">Kesulitan:</span>
               <select
                 value={difficultyFilter}
                 onChange={(e) => {
@@ -242,7 +282,7 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
           
           {!fixedSection && (
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Modul:</span>
+              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-550 uppercase tracking-wider">Modul:</span>
               <select
                 value={sectionFilter}
                 onChange={(e) => {
@@ -281,109 +321,132 @@ export default function QuestionsTab({ fixedSection }: QuestionsTabProps) {
                 ))}
               </div>
             ) : listeningAudioGroups.length === 0 ? (
-              <div className="py-12 text-center text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50/10 dark:bg-gray-900/5 rounded-2xl">
+              <div className="py-12 text-center text-xs font-semibold text-gray-400 dark:text-gray-550 bg-gray-55/10 dark:bg-gray-900/5 rounded-2xl">
                 Tidak ada berkas audio ditemukan. Klik &quot;Tambah Soal Baru&quot; di atas untuk mulai menambahkan.
               </div>
             ) : (
-              listeningAudioGroups.map((group, groupIdx) => (
-                <div key={groupIdx} className="bg-white dark:bg-gray-855 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-sm p-6 space-y-6">
-                  {/* Group Header */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
-                    <div className="space-y-1 text-left">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-teal-650 dark:text-teal-400 text-lg">audiotrack</span>
-                        <h3 className="font-hanken font-bold text-gray-955 dark:text-white text-base">
-                          {group.topic} #{groupIdx + 1}
-                        </h3>
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${
-                          group.difficulty === "EASY" ? "bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200/20" :
-                          group.difficulty === "MEDIUM" ? "bg-amber-50 dark:bg-amber-955/20 text-amber-600 dark:text-amber-400 border-amber-200/20" :
-                          "bg-red-50 dark:bg-red-950/20 text-red-650 dark:text-red-400 border-red-200/20"
-                        }`}>
-                          {group.difficulty}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-gray-400 font-mono truncate max-w-md" title={group.audioUrl}>
-                        Sumber: {group.audioUrl.split("/").pop()}
-                      </p>
-                    </div>
-
-                    {/* Audio Player and Add Button */}
-                    <div className="flex flex-wrap items-center gap-3">
-                      {group.audioUrl && (
-                        <div className="bg-gray-50 dark:bg-gray-900/50 px-3 py-1 rounded-xl border border-gray-100 dark:border-gray-800 flex items-center">
-                          <audio src={group.audioUrl} controls className="h-6 w-48 text-xs bg-transparent" />
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleOpenAddModalForAudio(group.audioUrl, group.difficulty)}
-                        className="bg-blue-600 hover:bg-blue-750 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all border-0 cursor-pointer shadow-sm shadow-blue-500/10"
+              listeningAudioGroups.map((group, groupIdx) => {
+                const isExpanded = !!expandedGroups[group.audioUrl];
+                return (
+                  <div key={groupIdx} className="bg-white dark:bg-gray-855 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-sm p-6 space-y-6">
+                    {/* Group Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
+                      <div 
+                        onClick={() => toggleGroupExpand(group.audioUrl)}
+                        className="space-y-1 text-left cursor-pointer select-none flex-1 flex items-start gap-3 group/header"
                       >
-                        <span className="material-symbols-outlined text-xs">add</span>
-                        Tambah Soal ke Audio Ini
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Questions List under this Audio */}
-                  <div className="space-y-4">
-                    {group.questions.map((q, idx) => (
-                      <div key={q.id} className="p-4 bg-gray-50/50 dark:bg-gray-900/10 border border-gray-150 dark:border-gray-800 rounded-2xl space-y-4 text-left relative group">
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex gap-3">
-                            <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center font-mono font-bold text-xs">
-                              {idx + 1}
-                            </span>
-                            <p className="font-hanken text-xs font-bold text-gray-955 dark:text-white leading-relaxed pt-0.5">
-                              {q.questionText}
-                            </p>
-                          </div>
-                          
-                          {/* Question Action Buttons */}
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => handleOpenEditModal(q)}
-                              className="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-955/30 p-1.5 rounded-xl transition-all border-0 bg-transparent cursor-pointer flex items-center"
-                              title="Edit Soal"
-                            >
-                              <span className="material-symbols-outlined text-base">edit</span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteQuestion(q.id)}
-                              className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-955/30 p-1.5 rounded-xl transition-all border-0 bg-transparent cursor-pointer flex items-center"
-                              title="Hapus Soal"
-                            >
-                              <span className="material-symbols-outlined text-base">delete</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Options */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] pl-9">
-                          {q.options.map((opt) => {
-                            const isCorrect = opt === q.correctAnswer;
-                            return (
-                              <div key={opt} className={`p-2.5 rounded-lg border ${
-                                isCorrect 
-                                  ? "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900/35 text-green-755 dark:text-green-400 font-bold" 
-                                  : "bg-white dark:bg-gray-850 border-gray-100 dark:border-gray-800 text-gray-500"
+                        <span className="material-symbols-outlined text-teal-650 dark:text-teal-400 text-lg mt-0.5">audiotrack</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-hanken font-bold text-gray-955 dark:text-white text-base group-hover/header:text-blue-600 dark:group-hover/header:text-blue-400 transition-colors flex items-center gap-1.5">
+                              {group.topic} #{groupIdx + 1}
+                              <span className={`material-symbols-outlined text-gray-400 text-lg transition-transform duration-200 ${
+                                isExpanded ? 'rotate-180' : ''
                               }`}>
-                                {opt}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {q.explanation && (
-                          <p className="text-[10px] text-gray-400 pl-9 italic">
-                            Penjelasan: {q.explanation}
+                                expand_more
+                              </span>
+                            </h3>
+                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${
+                              group.difficulty === "EASY" ? "bg-green-50 dark:bg-green-955/20 text-green-600 dark:text-green-400 border-green-200/20" :
+                              group.difficulty === "MEDIUM" ? "bg-amber-50 dark:bg-amber-955/20 text-amber-600 dark:text-amber-400 border-amber-200/20" :
+                              "bg-red-50 dark:bg-red-950/20 text-red-655 dark:text-red-400 border-red-200/20"
+                            }`}>
+                              {group.difficulty}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-400 font-mono truncate max-w-md" title={group.audioUrl}>
+                            Sumber: {group.audioUrl.split("/").pop()} ({group.questions.length} Soal)
                           </p>
-                        )}
+                        </div>
                       </div>
-                    ))}
+
+                      {/* Audio Player and Add Button */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {group.audioUrl && (
+                          <div className="bg-gray-50 dark:bg-gray-900/50 px-3 py-1 rounded-xl border border-gray-100 dark:border-gray-800 flex items-center">
+                            <audio src={group.audioUrl} controls className="h-6 w-48 text-xs bg-transparent" />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleOpenAddModalForAudio(group.audioUrl, group.difficulty)}
+                          className="bg-blue-600 hover:bg-blue-750 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all border-0 cursor-pointer shadow-sm shadow-blue-500/10"
+                        >
+                          <span className="material-symbols-outlined text-xs">add</span>
+                          Tambah Soal ke Audio Ini
+                        </button>
+                        <button
+                          onClick={() => void handleDeleteAudioGroup(group.questions)}
+                          className="bg-red-600 hover:bg-red-750 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all border-0 cursor-pointer shadow-sm shadow-red-500/10"
+                          title="Hapus Audio & Semua Soal"
+                        >
+                          <span className="material-symbols-outlined text-xs">delete</span>
+                          Hapus Audio & Semua Soal
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Questions List under this Audio (Only visible when expanded) */}
+                    {isExpanded && (
+                      <div className="space-y-4 pt-2 animate-fadeIn">
+                        {group.questions.map((q, idx) => (
+                          <div key={q.id} className="p-4 bg-gray-50/50 dark:bg-gray-900/10 border border-gray-150 dark:border-gray-800 rounded-2xl space-y-4 text-left relative group">
+                            <div className="flex justify-between items-start gap-4">
+                              <div className="flex gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center font-mono font-bold text-xs">
+                                  {idx + 1}
+                                </span>
+                                <p className="font-hanken text-xs font-bold text-gray-955 dark:text-white leading-relaxed pt-0.5">
+                                  {q.questionText}
+                                </p>
+                              </div>
+                              
+                              {/* Question Action Buttons */}
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => handleOpenEditModal(q)}
+                                  className="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-955/30 p-1.5 rounded-xl transition-all border-0 bg-transparent cursor-pointer flex items-center"
+                                  title="Edit Soal"
+                                >
+                                  <span className="material-symbols-outlined text-base">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteQuestion(q.id)}
+                                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-955/30 p-1.5 rounded-xl transition-all border-0 bg-transparent cursor-pointer flex items-center"
+                                  title="Hapus Soal"
+                                >
+                                  <span className="material-symbols-outlined text-base">delete</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Options */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] pl-9">
+                              {q.options.map((opt) => {
+                                const isCorrect = opt === q.correctAnswer;
+                                return (
+                                  <div key={opt} className={`p-2.5 rounded-lg border ${
+                                    isCorrect 
+                                      ? "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900/35 text-green-755 dark:text-green-400 font-bold" 
+                                      : "bg-white dark:bg-gray-855 border-gray-100 dark:border-gray-800 text-gray-500"
+                                  }`}>
+                                    {opt}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {q.explanation && (
+                              <p className="text-[10px] text-gray-400 pl-9 italic">
+                                Penjelasan: {q.explanation}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         ) : (
