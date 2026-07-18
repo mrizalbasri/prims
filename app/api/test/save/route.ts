@@ -11,6 +11,7 @@ interface SaveAnswerRequest {
   speakingResponse?: string;
   speakingAudioUrl?: string;
   currentSection: "vocabulary" | "grammar" | "listening" | "reading" | "writing" | "speaking";
+  isCompleted?: boolean;
 }
 
 const SECTION_TYPE_MAP: Record<string, SectionType> = {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: SaveAnswerRequest = await request.json();
-    const { answers, writingResponse, speakingResponse, speakingAudioUrl, currentSection } = body;
+    const { answers, writingResponse, speakingResponse, speakingAudioUrl, currentSection, isCompleted = true } = body;
 
     if (!currentSection) {
       return NextResponse.json({ error: 'currentSection is required' }, { status: 400 });
@@ -147,44 +148,46 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Mark current section attempt as COMPLETED
-    await prisma.sectionAttempt.update({
-      where: { id: sectionAttempt.id },
-      data: {
-        status: SectionStatus.COMPLETED,
-        endTime: sectionAttempt.endTime || new Date(),
-      },
-    });
-
-    // Mark the next section attempt as IN_PROGRESS
-    const SECTION_ORDER = [
-      SectionType.VOCABULARY,
-      SectionType.GRAMMAR,
-      SectionType.LISTENING,
-      SectionType.READING,
-      SectionType.WRITING,
-      SectionType.SPEAKING,
-    ];
-    const currentIndex = SECTION_ORDER.indexOf(sectionType);
-    if (currentIndex !== -1 && currentIndex < SECTION_ORDER.length - 1) {
-      const nextSectionType = SECTION_ORDER[currentIndex + 1];
-      const nextSectionAttempt = await prisma.sectionAttempt.findUnique({
-        where: {
-          testAttemptId_sectionType: {
-            testAttemptId: testAttempt.id,
-            sectionType: nextSectionType,
-          },
+    if (isCompleted) {
+      // Mark current section attempt as COMPLETED
+      await prisma.sectionAttempt.update({
+        where: { id: sectionAttempt.id },
+        data: {
+          status: SectionStatus.COMPLETED,
+          endTime: sectionAttempt.endTime || new Date(),
         },
       });
 
-      if (nextSectionAttempt && nextSectionAttempt.status === SectionStatus.NOT_STARTED) {
-        await prisma.sectionAttempt.update({
-          where: { id: nextSectionAttempt.id },
-          data: {
-            status: SectionStatus.IN_PROGRESS,
-            startTime: new Date(),
+      // Mark the next section attempt as IN_PROGRESS
+      const SECTION_ORDER = [
+        SectionType.VOCABULARY,
+        SectionType.GRAMMAR,
+        SectionType.LISTENING,
+        SectionType.READING,
+        SectionType.WRITING,
+        SectionType.SPEAKING,
+      ];
+      const currentIndex = SECTION_ORDER.indexOf(sectionType);
+      if (currentIndex !== -1 && currentIndex < SECTION_ORDER.length - 1) {
+        const nextSectionType = SECTION_ORDER[currentIndex + 1];
+        const nextSectionAttempt = await prisma.sectionAttempt.findUnique({
+          where: {
+            testAttemptId_sectionType: {
+              testAttemptId: testAttempt.id,
+              sectionType: nextSectionType,
+            },
           },
         });
+
+        if (nextSectionAttempt && nextSectionAttempt.status === SectionStatus.NOT_STARTED) {
+          await prisma.sectionAttempt.update({
+            where: { id: nextSectionAttempt.id },
+            data: {
+              status: SectionStatus.IN_PROGRESS,
+              startTime: new Date(),
+            },
+          });
+        }
       }
     }
 

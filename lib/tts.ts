@@ -4,10 +4,10 @@ import crypto from "crypto";
 
 const EDGE_TTS_URL = process.env.EDGE_TTS_URL || "http://localhost:20128/v1/audio/speech";
 const RAW_TTS_KEY = process.env.EDGE_TTS_KEY;
-if (!RAW_TTS_KEY && process.env.NODE_ENV === "production") {
-  throw new Error("EDGE_TTS_KEY environment variable is required in production.");
+if (!RAW_TTS_KEY && process.env.NODE_ENV === "production" && !process.env.GEMINI_API_KEY && !process.env.MINIMAX_API_KEY) {
+  throw new Error("EDGE_TTS_KEY or an active API key environment variable is required in production.");
 }
-const EDGE_TTS_KEY = RAW_TTS_KEY || "dev-secret-key-for-local-testing";
+const EDGE_TTS_KEY = RAW_TTS_KEY || process.env.GEMINI_API_KEY || process.env.MINIMAX_API_KEY || "dev-secret-key-for-local-testing";
 const EDGE_TTS_MODEL = process.env.EDGE_TTS_MODEL || "edge-tts/en-US-GuyNeural";
 
 /**
@@ -16,7 +16,8 @@ const EDGE_TTS_MODEL = process.env.EDGE_TTS_MODEL || "edge-tts/en-US-GuyNeural";
  * @param text The English text to convert to speech
  * @returns The local URL path of the saved MP3 file (e.g. /uploads/tts-[hash].mp3)
  */
-export async function textToSpeech(text: string): Promise<string> {
+export async function textToSpeech(text: string, voice?: string): Promise<string> {
+  const modelToUse = voice || EDGE_TTS_MODEL;
   const res = await fetch(EDGE_TTS_URL, {
     method: "POST",
     headers: {
@@ -24,7 +25,7 @@ export async function textToSpeech(text: string): Promise<string> {
       "Authorization": `Bearer ${EDGE_TTS_KEY}`,
     },
     body: JSON.stringify({
-      model: EDGE_TTS_MODEL,
+      model: modelToUse,
       input: text,
     }),
   });

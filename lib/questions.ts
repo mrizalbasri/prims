@@ -240,7 +240,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'July 15th',
     explanation: 'The speaker explicitly states that the student orientation registration deadline is Monday, July 15th.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Orientation Registration',
       skill: 'Detail Identification',
     },
@@ -253,7 +253,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'The Auditorium',
     explanation: 'The host mentions that all new students should gather in the Auditorium for the opening ceremony.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Event Location',
       skill: 'Detail Identification',
     },
@@ -266,7 +266,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'An enrollment confirmation letter',
     explanation: 'The registrar explains that students must present their enrollment confirmation letter to collect their ID card.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Required Documents',
       skill: 'Detail Identification',
     },
@@ -279,7 +279,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Academic Writing',
     explanation: 'The adviser notes that the Academic Writing course is fully booked but students can join the waitlist.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Course Availability',
       skill: 'Inference',
     },
@@ -297,7 +297,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Register for elective courses first',
     explanation: 'The adviser recommends completing general elective requirements if core classes are unavailable in the first semester.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Academic Advising',
       skill: 'Determining Speaker Recommendation',
     },
@@ -310,7 +310,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Photovoltaic cells',
     explanation: 'The lecturer notes that photovoltaic cells are the primary technology used to convert sunlight into electricity.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Renewable Energy',
       skill: 'Technical Terminology',
     },
@@ -328,7 +328,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Wind speed is highly intermittent and unpredictable',
     explanation: 'The speaker highlights intermittency as wind power\'s primary challenge because wind does not blow consistently.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Wind Energy',
       skill: 'Identifying Key Arguments',
     },
@@ -341,7 +341,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Iceland',
     explanation: 'Iceland is highlighted as a country that derives a vast majority of its heating and electricity from geothermal resources.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Geothermal Leaders',
       skill: 'Detail Identification',
     },
@@ -359,7 +359,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Advancements in battery capacity are crucial for transitioning away from fossil fuels',
     explanation: 'The lecturer concludes that solving the storage problem through larger, cheaper batteries is essential for a fully renewable grid.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Grid Storage Futures',
       skill: 'Drawing Inferences',
     },
@@ -377,7 +377,7 @@ export const listeningQuestions: QuestionData[] = [
     correctAnswer: 'Concerned that the transition is currently too slow to meet climate targets',
     explanation: 'The speaker expresses worry that current investment rates are insufficient to meet international carbon reduction deadlines.',
     metadata: {
-      audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      audioUrl: '/listening-fallback.mp3',
       topic: 'Transition Pace Assessment',
       skill: 'Determining Speaker Attitude',
     },

@@ -40,6 +40,19 @@ export async function POST(request: NextRequest) {
 
     // Determine role based on email domain
     const emailDomain = body.email.split('@')[1]?.toLowerCase();
+
+    // Enforce email domain whitelisting if configured in env
+    const allowedDomainsStr = process.env.ALLOWED_EMAIL_DOMAINS;
+    if (allowedDomainsStr) {
+      const allowedDomains = allowedDomainsStr.split(',').map((d) => d.trim().toLowerCase());
+      if (!allowedDomains.includes(emailDomain)) {
+        return NextResponse.json(
+          { error: 'Domain email tidak diperbolehkan. Silakan gunakan email kampus resmi Anda.' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Strict admin email domain whitelist
     const role = (emailDomain === 'admin.president.ac.id') 
       ? UserRole.ADMIN 

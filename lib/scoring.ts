@@ -209,7 +209,7 @@ function parseAiJson(text: string): { score: number; feedback: Record<string, un
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "Request timed out"): Promise<T> {
-  let timeoutId: any;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
   });
@@ -219,7 +219,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "
 async function runGeminiScoringWithFallback(
   scoringPrompt: string,
   preferredModel: string,
-  fallbackModel = "gemini-2.5-flash",
+  fallbackModel = "gemini-2.0-flash",
   audioData?: { data: string; mimeType: string },
 ): Promise<{ score: number; feedback: Record<string, unknown> }> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -227,6 +227,48 @@ async function runGeminiScoringWithFallback(
     throw new Error("GEMINI_API_KEY is missing");
   }
 
+  const baseUrl = process.env.GEMINI_BASE_URL;
+
+  // 1. If GEMINI_BASE_URL is set, route through the custom OpenAI-compatible proxy (for text-only requests)
+  if (baseUrl && !audioData) {
+    const modelToUse = preferredModel;
+    const messages = [
+      {
+        role: "user",
+        content: [] as any[]
+      }
+    ];
+
+    messages[0].content.push({
+      type: "text",
+      text: scoringPrompt
+    });
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelToUse,
+        messages,
+        temperature: 0.1,
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini Proxy failed: ${response.status} - ${errText}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices[0].message.content || "";
+    return parseAiJson(text);
+  }
+
+  // 2. Otherwise, use the official Google SDK
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -308,6 +350,7 @@ async function runMiniMaxScoring(
         { role: "user", content: scoringPrompt }
       ],
       temperature: 0.1,
+      stream: false,
     }),
   });
 
@@ -379,11 +422,11 @@ Return your response in JSON format:
 
     // 2. Fallback to Gemini
     if (process.env.GEMINI_API_KEY) {
-      const modelName = process.env.GEMINI_WRITING_MODEL || "gemini-2.5-flash";
+      const modelName = process.env.GEMINI_WRITING_MODEL || "gemini-2.0-flash";
       return await runGeminiScoringWithFallback(
         scoringPrompt,
         modelName,
-        "gemini-2.5-flash",
+        "gemini-2.0-flash",
       );
     }
 
@@ -489,11 +532,11 @@ Return your response in JSON format:
       try {
         const modelName =
           process.env.GEMINI_SPEAKING_MODEL ||
-          "gemini-2.5-flash";
+          "gemini-2.0-flash";
         return await runGeminiScoringWithFallback(
           scoringPrompt,
           modelName,
-          "gemini-2.5-flash",
+          "gemini-2.0-flash",
           audioData
         );
       } catch (geminiError) {

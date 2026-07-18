@@ -173,6 +173,86 @@ export const academicVocabularyCards: VocabularyCardData[] = [
       topic: 'General Academic',
     },
   },
+  // Business Category
+  {
+    term: 'negotiate',
+    meaning: 'Berunding untuk mencapai kesepakatan bersama',
+    exampleSentence: 'The company was able to negotiate a better deal with the supplier.',
+    pronunciation: '/nəˈɡəʊ.ʃi.eɪt/',
+    category: VocabularyCategory.BUSINESS,
+    difficulty: QuestionDifficulty.MEDIUM,
+    metadata: {
+      synonyms: ['bargain', 'discuss', 'settle'],
+      partOfSpeech: 'verb',
+      topic: 'Commerce',
+    },
+  },
+  {
+    term: 'revenue',
+    meaning: 'Total pendapatan yang dihasilkan oleh bisnis dari penjualan barang atau jasa',
+    exampleSentence: 'The company reported a significant increase in quarterly revenue.',
+    pronunciation: '/ˈrev.ən.juː/',
+    category: VocabularyCategory.BUSINESS,
+    difficulty: QuestionDifficulty.EASY,
+    metadata: {
+      synonyms: ['income', 'earnings', 'yield'],
+      partOfSpeech: 'noun',
+      topic: 'Finance',
+    },
+  },
+  {
+    term: 'acquisition',
+    meaning: 'Proses membeli atau mengambil alih perusahaan lain',
+    exampleSentence: 'The tech giant announced its latest acquisition of a AI startup.',
+    pronunciation: '/ˌæk.wɪˈzɪʃ.ən/',
+    category: VocabularyCategory.BUSINESS,
+    difficulty: QuestionDifficulty.HARD,
+    metadata: {
+      synonyms: ['takeover', 'purchase', 'buyout'],
+      partOfSpeech: 'noun',
+      topic: 'Corporate',
+    },
+  },
+  // General Category
+  {
+    term: 'commute',
+    meaning: 'Perjalanan harian pulang pergi antara rumah dan tempat kerja atau sekolah',
+    exampleSentence: 'Her daily commute to the Pekanbaru campus takes about thirty minutes.',
+    pronunciation: '/kəˈmjuːt/',
+    category: VocabularyCategory.GENERAL,
+    difficulty: QuestionDifficulty.EASY,
+    metadata: {
+      synonyms: ['travel', 'journey'],
+      partOfSpeech: 'noun/verb',
+      topic: 'Daily Life',
+    },
+  },
+  {
+    term: 'elaborate',
+    meaning: 'Menjelaskan atau mengembangkan sesuatu secara lebih rinci dan mendetail',
+    exampleSentence: 'Could you please elaborate on your research methodology?',
+    pronunciation: '/ɪˈlæb.ər.ət/',
+    category: VocabularyCategory.GENERAL,
+    difficulty: QuestionDifficulty.MEDIUM,
+    metadata: {
+      synonyms: ['explain', 'detail', 'expand'],
+      partOfSpeech: 'verb',
+      topic: 'Communication',
+    },
+  },
+  {
+    term: 'unprecedented',
+    meaning: 'Belum pernah terjadi, dikenal, atau dialami sebelumnya',
+    exampleSentence: 'The university is experiencing unprecedented student enrollment this year.',
+    pronunciation: '/ʌnˈpres.ɪ.den.tɪd/',
+    category: VocabularyCategory.GENERAL,
+    difficulty: QuestionDifficulty.HARD,
+    metadata: {
+      synonyms: ['unparalleled', 'exceptional', 'novel'],
+      partOfSpeech: 'adjective',
+      topic: 'General Context',
+    },
+  },
 ];
 
 /**
