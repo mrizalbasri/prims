@@ -120,7 +120,7 @@ export default function StudentResultPage() {
 
   async function fetchResult(isPolling = false) {
     try {
-      const res = await fetch("/api/student/result");
+      const res = await fetch(`/api/student/result?t=${Date.now()}`);
 
       if (res.status === 401) {
         router.push("/login");

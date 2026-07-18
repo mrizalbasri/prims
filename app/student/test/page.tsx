@@ -147,10 +147,34 @@ export default function StudentTestPage() {
         const data = (await stateRes.json()) as StatePayload & { activeSectionIndex?: number };
         const activeIndex = data.activeSectionIndex ?? 0;
         setSections(data.sections);
-        setAnswers(data.attempt?.answers ?? {});
-        setWritingResponse(data.attempt?.writingResponse ?? "");
-        setSpeakingResponse(data.attempt?.speakingResponse ?? "");
-        setAudioUrlState(data.attempt?.speakingAudioUrl ?? null);
+
+        // Load database state
+        let dbAnswers = data.attempt?.answers ?? {};
+        let dbWriting = data.attempt?.writingResponse ?? "";
+        let dbSpeaking = data.attempt?.speakingResponse ?? "";
+        let dbAudio = data.attempt?.speakingAudioUrl ?? null;
+
+        // Restore from local storage backup if available
+        try {
+          const backupStr = localStorage.getItem("prism_test_backup");
+          if (backupStr) {
+            const backup = JSON.parse(backupStr);
+            if (backup && typeof backup === "object") {
+              dbAnswers = { ...dbAnswers, ...backup.answers };
+              if (backup.writingResponse) dbWriting = backup.writingResponse;
+              if (backup.speakingResponse) dbSpeaking = backup.speakingResponse;
+              if (backup.speakingAudioUrl) dbAudio = backup.speakingAudioUrl;
+              console.log("Restored test progress from local backup:", backup);
+            }
+          }
+        } catch (backupErr) {
+          console.warn("Could not load local test backup:", backupErr);
+        }
+
+        setAnswers(dbAnswers);
+        setWritingResponse(dbWriting);
+        setSpeakingResponse(dbSpeaking);
+        setAudioUrlState(dbAudio);
         setSectionIndex(activeIndex);
         setTimeLeft((data.sections[activeIndex]?.durationMinutes ?? 0) * 60);
         hasLoadedTestRef.current = true;
@@ -220,7 +244,7 @@ export default function StudentTestPage() {
   }, []);
 
   const persist = useCallback(
-    async (sectionOverride?: Section["section"]): Promise<boolean> => {
+    async (sectionOverride?: Section["section"], isCompleted = false): Promise<boolean> => {
       setSaveStatus("saving");
       setSaveError(null);
 
@@ -234,17 +258,37 @@ export default function StudentTestPage() {
             speakingResponse,
             speakingAudioUrl: audioUrlState,
             currentSection: sectionOverride ?? currentSection?.section,
+            isCompleted,
           }),
         });
 
         if (!saveRes.ok) throw new Error("Save request failed");
+
+        try {
+          localStorage.removeItem("prism_test_backup");
+        } catch {}
 
         setSaveStatus("saved");
         return true;
       } catch (err) {
         console.error("Auto-save error:", err);
         setSaveStatus("error");
-        setSaveError("Jawaban belum tersimpan. Cek koneksi lalu coba lagi.");
+        setSaveError("Jawaban disimpan lokal (offline). Cek koneksi internet Anda.");
+
+        try {
+          localStorage.setItem(
+            "prism_test_backup",
+            JSON.stringify({
+              answers,
+              writingResponse,
+              speakingResponse,
+              speakingAudioUrl: audioUrlState,
+              updatedAt: Date.now(),
+            })
+          );
+        } catch (backupErr) {
+          console.error("Failed to save local backup:", backupErr);
+        }
         return false;
       }
     },
@@ -256,7 +300,7 @@ export default function StudentTestPage() {
 
     setSaveStatus("idle");
     const timeoutId = window.setTimeout(() => {
-      void persist(currentSection.section);
+      void persist(currentSection.section, false);
     }, 1200);
 
     return () => window.clearTimeout(timeoutId);
@@ -268,7 +312,7 @@ export default function StudentTestPage() {
       setError(null);
 
       try {
-        const saved = await persist(currentSection?.section);
+        const saved = await persist(currentSection?.section, true);
         if (!saved) return;
 
         const submitRes = await fetch("/api/test/submit", { method: "POST" });
@@ -294,8 +338,15 @@ export default function StudentTestPage() {
 
       const nextIndex = sectionIndex + 1;
       const nextSection = sections[nextIndex];
-      const saved = await persist(currentSection.section);
-      if (!saved && !fromTimeout) return;
+      const saved = await persist(currentSection.section, true);
+      if (!saved && !fromTimeout) {
+        try {
+          const backup = localStorage.getItem("prism_test_backup");
+          if (!backup) return;
+        } catch {
+          return;
+        }
+      }
 
       if (!nextSection) {
         if (fromTimeout) {

@@ -220,43 +220,50 @@ export default function StudentDashboardPage() {
 
         {/* 2. KONDISI SUDAH TES: Tampilkan Hasil Ujian */}
         {result && (
-          <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-md p-6 md:p-8 flex flex-col lg:flex-row gap-8 items-center animate-fadeIn">
+          <div className="bg-white dark:bg-gray-855 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-sm p-6 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center animate-fadeIn">
             {/* Left Result Details */}
-            <div className="flex-1 space-y-6 w-full">
-              <div className="space-y-1">
-                <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-550 tracking-widest">
+            <div className="lg:col-span-7 space-y-6 w-full">
+              {/* Restored Clean Score Header */}
+              <div className="space-y-2 text-left">
+                <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-550 tracking-widest block">
                   Hasil Ujian Placement Test Anda
                 </span>
-                <div className="flex items-baseline gap-4">
-                  <h2 className="font-hanken text-6xl font-black text-gray-900 dark:text-white">
+                <div className="flex items-baseline gap-2">
+                  <h2 className="font-hanken text-6xl font-black text-gray-900 dark:text-white leading-none">
                     {Math.round(result.overallScore)}
                   </h2>
-                  <span className="text-sm font-semibold text-gray-400">/ 100</span>
+                  <span className="text-sm font-bold text-gray-400">/ 100</span>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${levelBg} ${levelColor}`}>
-                    <span className="material-symbols-outlined text-base">verified</span>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${levelBg} ${levelColor}`}>
+                    <span className="material-symbols-outlined text-sm">verified</span>
                     {levelNameFormatted}
                   </div>
-                  <div className="text-xs text-gray-400 font-inter">
+                  <span className="text-xs text-gray-450 dark:text-gray-500 font-medium">
                     Diuji pada {new Date(result.completedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
+                  </span>
                 </div>
-                <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                  {result.levelDescription}
-                </p>
               </div>
 
+              {/* Insights Card */}
+              <div className="flex gap-3 bg-gray-50 dark:bg-gray-900/30 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 text-left">
+                <span className="material-symbols-outlined text-teal-650 dark:text-teal-400 text-xl flex-shrink-0 mt-0.5">insights</span>
+                <div className="space-y-1">
+                  <h5 className="font-hanken font-bold text-xs text-gray-800 dark:text-gray-200">Rangkuman Hasil Ujian</h5>
+                  <p className="font-inter text-xs text-gray-555 dark:text-gray-400 leading-relaxed">
+                    {result.levelDescription}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-4">
                 <Link 
                   href="/student/result"
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-750 text-white font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all group"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-750 text-white font-hanken font-bold text-xs px-6 py-3.5 rounded-xl hover:shadow-lg transition-all group shadow-sm shadow-blue-500/10"
                 >
                   Lihat Detail Hasil & Rekomendasi
-                  <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                  <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
                 </Link>
 
                 {user?.allowRetake && (
@@ -264,9 +271,9 @@ export default function StudentDashboardPage() {
                     type="button"
                     onClick={handleRetakeTest}
                     disabled={isStartingRetake}
-                    className="inline-flex items-center gap-2 border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-205 font-hanken font-bold px-6 py-3 rounded-xl hover:shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-2 border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-205 font-hanken font-bold text-xs px-6 py-3.5 rounded-xl hover:shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-lg">replay</span>
+                    <span className="material-symbols-outlined text-base">replay</span>
                     {isStartingRetake ? "Mempersiapkan Ujian..." : "Ambil Tes Ulang"}
                   </button>
                 )}
@@ -274,7 +281,9 @@ export default function StudentDashboardPage() {
             </div>
 
             {/* Right Radar Chart Sub-component */}
-            <RadarChart scores={{ ...result.scores, total: result.overallScore }} />
+            <div className="lg:col-span-5 w-full flex items-center justify-center">
+              <RadarChart scores={{ ...result.scores, total: result.overallScore }} borderless />
+            </div>
           </div>
         )}
 

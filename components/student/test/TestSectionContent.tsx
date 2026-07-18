@@ -1,7 +1,6 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import AnswerSheet from "./AnswerSheet";
 import QuestionPanel from "./QuestionPanel";
 import type { ListeningGroup, TestSection } from "./types";
 
@@ -47,7 +46,7 @@ export default function TestSectionContent({
   onQuestionClick,
 }: TestSectionContentProps) {
   return (
-    <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_280px]">
+    <div className="w-full">
       <QuestionPanel
         currentSection={currentSection}
         readingPassage={readingPassage}
@@ -66,14 +65,6 @@ export default function TestSectionContent({
         setCurrentListeningGroupIdx={setCurrentListeningGroupIdx}
         isSectionComplete={isSectionComplete}
         moveNext={moveNext}
-      />
-      <AnswerSheet
-        section={currentSection}
-        answers={answers}
-        writingResponse={writingResponse}
-        speakingResponse={speakingResponse}
-        speakingAudioUrl={audioUrlState}
-        onQuestionClick={onQuestionClick}
       />
     </div>
   );

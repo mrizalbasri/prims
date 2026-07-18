@@ -12,9 +12,10 @@ type Scores = {
 
 interface RadarChartProps {
   scores: Scores;
+  borderless?: boolean;
 }
 
-export function RadarChart({ scores }: RadarChartProps) {
+export function RadarChart({ scores, borderless = false }: RadarChartProps) {
   // Filter valid axis keys that are present in scores (excluding 'total')
   const allowedKeys = ['vocabulary', 'grammar', 'listening', 'reading', 'writing', 'speaking'];
   const axisKeys = allowedKeys.filter(
@@ -97,7 +98,10 @@ export function RadarChart({ scores }: RadarChartProps) {
   });
 
   return (
-    <div className="w-full flex flex-col items-center justify-center p-6 bg-white dark:bg-[#151D30] rounded-3xl border border-slate-200/60 dark:border-slate-800/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.01)] dark:shadow-none transition-all duration-300">
+    <div className={borderless 
+      ? "w-full flex flex-col items-center justify-center bg-transparent"
+      : "w-full flex flex-col items-center justify-center p-6 bg-white dark:bg-[#151D30] rounded-3xl border border-slate-200/60 dark:border-slate-800/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.01)] dark:shadow-none transition-all duration-300"
+    }>
       <span className="font-hanken text-[10px] font-extrabold text-slate-400 dark:text-slate-500 tracking-widest mb-6 uppercase">
         GRAFIK DISTRIBUSI SKILL
       </span>
@@ -159,8 +163,10 @@ export function RadarChart({ scores }: RadarChartProps) {
               x={lbl.x}
               y={lbl.y}
               textAnchor={lbl.anchor}
-              className="fill-slate-400 dark:fill-slate-500 font-bold"
-              fontSize="5"
+              fill="currentColor"
+              stroke="none"
+              className="text-slate-700 dark:text-slate-200 font-bold font-sans"
+              fontSize="6"
             >
               {lbl.label}
             </text>

@@ -16,7 +16,6 @@ export default function SpeakingTestRecorder({
   onUploadingChange,
 }: SpeakingTestRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,7 +26,6 @@ export default function SpeakingTestRecorder({
   const streamRef = useRef<MediaStream | null>(null);
 
   const isRecordingRef = useRef(false);
-  const isPausedRef = useRef(false);
 
   // Keep references to text and audioUrl to avoid re-binding SpeechRecognition on every key stroke
   const textRef = useRef(text);
@@ -62,15 +60,11 @@ export default function SpeakingTestRecorder({
     };
   }, []);
 
-
-
   async function startRecording() {
     setError(null);
     onChange("", null);
     isRecordingRef.current = true;
-    isPausedRef.current = false;
     setIsRecording(true);
-    setIsPaused(false);
 
     // Initialize speech recognition if not done yet
     if (!recognitionRef.current && typeof window !== "undefined") {
@@ -101,8 +95,6 @@ export default function SpeakingTestRecorder({
           console.error("Speech recognition error:", event.error);
           setIsRecording(false);
           isRecordingRef.current = false;
-          setIsPaused(false);
-          isPausedRef.current = false;
           if (event.error === 'not-allowed') {
             setError("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
           } else if (event.error === 'no-speech') {
@@ -115,10 +107,8 @@ export default function SpeakingTestRecorder({
         };
 
         rec.onend = () => {
-          if (!isPausedRef.current) {
-            setIsRecording(false);
-            isRecordingRef.current = false;
-          }
+          setIsRecording(false);
+          isRecordingRef.current = false;
         };
 
         recognitionRef.current = rec;
@@ -184,49 +174,9 @@ export default function SpeakingTestRecorder({
     }
   }
 
-  function pauseRecording() {
-    if (!isRecordingRef.current || isPausedRef.current) return;
-
-    isPausedRef.current = true;
-    setIsPaused(true);
-
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-      mediaRecorderRef.current.pause();
-    }
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        console.error("Failed to pause speech recognition:", e);
-      }
-    }
-  }
-
-  function resumeRecording() {
-    if (!isRecordingRef.current || !isPausedRef.current) return;
-
-    isPausedRef.current = false;
-    setIsPaused(false);
-
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
-      mediaRecorderRef.current.resume();
-    }
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-      } catch (e) {
-        console.error("Failed to resume speech recognition:", e);
-      }
-    }
-  }
-
   async function stopRecording() {
     isRecordingRef.current = false;
-    isPausedRef.current = false;
     setIsRecording(false);
-    setIsPaused(false);
 
     if (recognitionRef.current) {
       try {
@@ -248,7 +198,7 @@ export default function SpeakingTestRecorder({
 
   return (
     <div className="pl-0 md:pl-12 space-y-6">
-      <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-250 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
+      <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50 space-y-4">
         {error && (
           <div className="w-full flex items-start gap-3 p-4 rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300 text-xs font-medium leading-relaxed relative">
             <span className="material-symbols-outlined text-red-500 text-lg select-none">warning</span>
@@ -263,10 +213,10 @@ export default function SpeakingTestRecorder({
           </div>
         )}
 
-        <div className="flex items-center justify-center space-x-6">
-          {/* Main button: Start Recording or Stop Recording */}
+        <div className="flex items-center justify-center">
+          {/* Main Button: Start or Stop */}
           <div className="relative">
-            {isRecording && !isPaused && (
+            {isRecording && (
               <>
                 <div className="absolute inset-0 bg-red-500/30 rounded-full animate-ping scale-150"></div>
                 <div className="absolute inset-0 bg-red-500/20 rounded-full animate-pulse scale-125"></div>
@@ -274,15 +224,15 @@ export default function SpeakingTestRecorder({
             )}
             <button
               type="button"
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={!isRecording ? startRecording : stopRecording}
               disabled={isUploadingAudio}
-              className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 cursor-pointer ${
-                isRecording 
-                  ? "bg-red-600 text-white animate-pulse" 
+              className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 cursor-pointer border-0 ${
+                isRecording
+                  ? "bg-red-600 text-white animate-pulse"
                   : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"
               }`}
               style={{
-                boxShadow: isRecording && !isPaused ? "0 0 20px 4px rgba(239, 68, 68, 0.5)" : undefined
+                boxShadow: isRecording ? "0 0 20px 4px rgba(239, 68, 68, 0.5)" : undefined
               }}
             >
               <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isRecording ? "'FILL' 1" : undefined }}>
@@ -290,32 +240,12 @@ export default function SpeakingTestRecorder({
               </span>
             </button>
           </div>
-
-          {/* Secondary button: Pause / Resume */}
-          {isRecording && (
-            <button
-              type="button"
-              onClick={isPaused ? resumeRecording : pauseRecording}
-              disabled={isUploadingAudio}
-              className={`w-14 h-14 rounded-full flex items-center justify-center shadow-md transition-all hover:scale-105 cursor-pointer ${
-                isPaused 
-                  ? "bg-green-600 text-white" 
-                  : "bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              <span className="material-symbols-outlined text-2xl">
-                {isPaused ? "play_arrow" : "pause"}
-              </span>
-            </button>
-          )}
         </div>
         <p className="font-hanken font-bold text-gray-800 dark:text-white">
           {isUploadingAudio 
             ? "Mengunggah rekaman..." 
             : isRecording 
-              ? isPaused 
-                ? "Rekaman Dipause... Klik tombol resume untuk melanjutkan" 
-                : "Sedang Merekam... Bicaralah Sekarang" 
+              ? "Sedang Merekam... Klik untuk Berhenti" 
               : "Klik untuk Rekam Suara"}
         </p>
         

@@ -107,7 +107,7 @@ export default function ListeningPlayer({ audioUrl }: ListeningPlayerProps) {
               ? "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
               : isPlaying
               ? "bg-amber-500 hover:bg-amber-600 text-slate-950 hover:shadow-lg hover:shadow-amber-500/20"
-              : "bg-teal-550 hover:bg-teal-650 text-slate-950 hover:shadow-lg hover:shadow-teal-550/20"
+              : "bg-teal-500 hover:bg-teal-600 text-slate-950 hover:shadow-lg hover:shadow-teal-500/20"
           }`}
         >
           {isPlayPending ? (
