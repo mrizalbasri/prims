@@ -9,6 +9,7 @@ import { WelcomeOverlay } from "@/components/student/WelcomeOverlay";
 import { TokenForm } from "@/components/student/TokenForm";
 import { StudyModules } from "@/components/student/StudyModules";
 import { StatsSection } from "@/components/student/StatsSection";
+import { ProgressTracker, TestHistoryItem } from "@/components/student/ProgressTracker";
 
 type User = {
   id: string;
@@ -46,6 +47,7 @@ export default function StudentDashboardPage() {
   const [isStartingRetake, setIsStartingRetake] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [testHistory, setTestHistory] = useState<TestHistoryItem[]>([]);
   const [learningStats, setLearningStats] = useState({
     vocabLearned: 0,
     writingCount: 0,
@@ -80,11 +82,20 @@ export default function StudentDashboardPage() {
           setShowWelcome(true);
         }
 
-        // Load real learning stats in parallel
-        const statsRes = await fetch("/api/student/stats");
+        // Load real learning stats & test history in parallel
+        const [statsRes, historyRes] = await Promise.all([
+          fetch("/api/student/stats"),
+          fetch("/api/student/history"),
+        ]);
+
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setLearningStats(statsData);
+        }
+
+        if (historyRes.ok) {
+          const historyData = await historyRes.json();
+          setTestHistory(historyData.history || []);
         }
       } catch (err) {
         console.error("Dashboard load data error:", err);
@@ -309,6 +320,16 @@ export default function StudentDashboardPage() {
               streak={learningStats.streak}
             />
           </>
+        )}
+
+        {/* 5. GRAFIK PERKEMBANGAN & KOMPARASI RETAKE */}
+        {testHistory.length > 0 && (
+          <ProgressTracker
+            history={testHistory}
+            allowRetake={user?.allowRetake}
+            onRetakeTest={handleRetakeTest}
+            isStartingRetake={isStartingRetake}
+          />
         )}
       </main>
     </div>
