@@ -143,12 +143,12 @@ export interface SectionScores {
 
 export function calculateTotalScore(scores: SectionScores): number {
   return (
-    scores.vocabulary * SECTION_WEIGHTS.VOCABULARY +
-    scores.grammar * SECTION_WEIGHTS.GRAMMAR +
+    (scores.vocabulary || 0) * SECTION_WEIGHTS.VOCABULARY +
+    (scores.grammar || 0) * SECTION_WEIGHTS.GRAMMAR +
     (scores.listening || 0) * SECTION_WEIGHTS.LISTENING +
-    scores.reading * SECTION_WEIGHTS.READING +
-    scores.writing * SECTION_WEIGHTS.WRITING +
-    scores.speaking * SECTION_WEIGHTS.SPEAKING
+    (scores.reading || 0) * SECTION_WEIGHTS.READING +
+    (scores.writing || 0) * SECTION_WEIGHTS.WRITING +
+    (scores.speaking || 0) * SECTION_WEIGHTS.SPEAKING
   );
 }
 

@@ -125,8 +125,17 @@ export default function WritingPage() {
         return;
       }
 
-      // Start polling status
+      // Start polling status with max retry count guard (max 15 attempts / 45s)
+      let pollCount = 0;
       pollIntervalRef.current = setInterval(async () => {
+        pollCount += 1;
+        if (pollCount > 15) {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          alert("Evaluasi AI membutuhkan waktu lebih lama. Hasil akan muncul di tab Riwayat setelah selesai.");
+          setIsSubmitting(false);
+          return;
+        }
+
         try {
           const statusRes = await fetch(`/api/writing/submissions?id=${submissionId}`);
           if (statusRes.ok) {

@@ -116,9 +116,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
-    // Delete question
-    await prisma.question.delete({
+    // Soft delete question (mark isActive as false) to prevent Foreign Key constraint crashes if answered by students
+    await prisma.question.update({
       where: { id },
+      data: { isActive: false },
     });
 
     await createAuditLog(
