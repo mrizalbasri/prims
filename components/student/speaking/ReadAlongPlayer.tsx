@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 interface ReadAlongPlayerProps {
   scenario: {
@@ -38,7 +38,12 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const words = useRef<string[]>(scenario.targetText.split(/\s+/));
+  const words = useMemo(() => scenario.targetText ? scenario.targetText.split(/\s+/) : [], [scenario.targetText]);
+  const wordsRef = useRef<string[]>(words);
+  useEffect(() => {
+    wordsRef.current = words;
+  }, [words]);
+
   const activeWordRef = useRef<HTMLSpanElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -103,8 +108,8 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
                   for (let offset = 0; offset < 6; offset++) {
                     const targetIdx = nextIdx + offset;
                     if (
-                      targetIdx < words.current.length &&
-                      cleanWord(words.current[targetIdx]) === word
+                      targetIdx < wordsRef.current.length &&
+                      cleanWord(wordsRef.current[targetIdx]) === word
                     ) {
                       nextIdx = targetIdx + 1;
                       break;
@@ -113,7 +118,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
                 }
                 
                 // If we reach the end of the text, auto stop
-                if (nextIdx >= words.current.length) {
+                if (nextIdx >= wordsRef.current.length) {
                   setTimeout(() => void finishReading(), 500);
                 }
                 return nextIdx;
@@ -160,7 +165,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
       autoScrollTimerRef.current = setInterval(() => {
         setActiveWordIdx((prev) => {
           const next = prev + 1;
-          if (next >= words.current.length) {
+          if (next >= wordsRef.current.length) {
             if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
             setTimeout(() => void finishReading(), 800);
             return prev;
@@ -330,7 +335,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
             className="flex-1 overflow-y-auto py-12 px-2 scrollbar-none h-[220px]"
           >
             <div className="flex flex-wrap gap-x-2 gap-y-3 justify-center text-center text-xl sm:text-2xl md:text-3xl leading-relaxed">
-              {words.current.map((word, idx) => {
+              {words.map((word, idx) => {
                 const isWordActive = idx === activeWordIdx;
                 const isWordRead = idx < activeWordIdx;
 
@@ -359,8 +364,8 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
               className="bg-red-600 h-full transition-all duration-300"
               style={{
                 width: `${
-                  words.current.length > 0
-                    ? Math.min(100, Math.max(0, ((activeWordIdx + 1) / words.current.length) * 100))
+                  words.length > 0
+                    ? Math.min(100, Math.max(0, ((activeWordIdx + 1) / words.length) * 100))
                     : 0
                 }%`,
               }}
