@@ -47,6 +47,8 @@ export default function StudentTestPage() {
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [warningCount, setWarningCount] = useState(0);
+  const [showViolationModal, setShowViolationModal] = useState(false);
   const hasLoadedTestRef = useRef(false);
 
   const currentSection = sections[sectionIndex];
@@ -144,7 +146,7 @@ export default function StudentTestPage() {
           return;
         }
 
-        const data = (await stateRes.json()) as StatePayload & { activeSectionIndex?: number };
+        const data = (await stateRes.json()) as StatePayload & { activeSectionIndex?: number; activeRemainingSeconds?: number | null };
         const activeIndex = data.activeSectionIndex ?? 0;
         setSections(data.sections);
 
@@ -176,7 +178,12 @@ export default function StudentTestPage() {
         setSpeakingResponse(dbSpeaking);
         setAudioUrlState(dbAudio);
         setSectionIndex(activeIndex);
-        setTimeLeft((data.sections[activeIndex]?.durationMinutes ?? 0) * 60);
+        
+        const activeSecData = data.sections[activeIndex];
+        const serverRemaining = data.activeRemainingSeconds ?? activeSecData?.remainingSeconds;
+        const initialSeconds = typeof serverRemaining === "number" ? serverRemaining : (activeSecData?.durationMinutes ?? 0) * 60;
+        setTimeLeft(initialSeconds);
+
         hasLoadedTestRef.current = true;
         setSaveStatus("saved");
       } catch (err) {
@@ -189,6 +196,35 @@ export default function StudentTestPage() {
 
     void bootstrap();
   }, [router]);
+
+  // Anti-Cheating & Tab Switching Detector
+  useEffect(() => {
+    if (isLoading || !currentSection || isSubmitting) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setWarningCount((prev) => {
+          const nextCount = prev + 1;
+          setShowViolationModal(true);
+
+          void fetch("/api/test/log-violation", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              violationType: "TAB_SWITCH",
+              section: currentSection.section,
+              details: { warningCount: nextCount },
+            }),
+          }).catch(() => {});
+
+          return nextCount;
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isLoading, currentSection, isSubmitting]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -484,7 +520,6 @@ export default function StudentTestPage() {
           setCurrentListeningGroupIdx={setCurrentListeningGroupIdx}
           isSectionComplete={isSectionComplete}
           moveNext={moveNext}
-          onQuestionClick={scrollToQuestion}
         />
       </main>
 
@@ -496,6 +531,30 @@ export default function StudentTestPage() {
         onConfirm={() => void submitTest()}
         onReviewUnanswered={reviewFirstUnanswered}
       />
+
+      {showViolationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900 border border-amber-200 dark:border-amber-900/50">
+            <div className="mb-4 flex items-center gap-3 text-amber-600 dark:text-amber-400">
+              <span className="material-symbols-outlined text-3xl">warning</span>
+              <h3 className="font-hanken text-lg font-bold">Peringatan Integritas Ujian</h3>
+            </div>
+            <p className="mb-3 text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+              Sistem mendeteksi bahwa Anda meninggalkan halaman atau berpindah tab <strong className="text-amber-600 dark:text-amber-400">({warningCount}x)</strong>. Berpindah tab atau aplikasi saat ujian berlangsung tidak diperbolehkan.
+            </p>
+            <p className="mb-6 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 font-medium border border-amber-200/60 dark:border-amber-900/40">
+              Catatan pelanggaran ini telah direkam ke server dan dapat mempengaruhi evaluasi validitas hasil ujian Anda.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowViolationModal(false)}
+              className="w-full rounded-xl bg-amber-600 px-4 py-3 font-hanken text-sm font-bold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-lg shadow-amber-600/20"
+            >
+              Saya Mengerti & Lanjutkan Ujian
+            </button>
+          </div>
+        </div>
+      )}
 
       <BottomNavBar
         currentSection={currentSection}

@@ -22,7 +22,6 @@ type TestSectionContentProps = {
   setCurrentListeningGroupIdx: Dispatch<SetStateAction<number>>;
   isSectionComplete: boolean;
   moveNext: (fromTimeout?: boolean) => Promise<void>;
-  onQuestionClick: (index: number) => void;
 };
 
 export default function TestSectionContent({
@@ -43,7 +42,6 @@ export default function TestSectionContent({
   setCurrentListeningGroupIdx,
   isSectionComplete,
   moveNext,
-  onQuestionClick,
 }: TestSectionContentProps) {
   return (
     <div className="w-full">

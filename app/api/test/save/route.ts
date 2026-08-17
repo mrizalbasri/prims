@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreObjectiveAnswer } from '@/lib/scoring';
 
+import { getTestSettings } from '@/lib/settings';
+
 interface SaveAnswerRequest {
   answers?: Record<string, string>;
   writingResponse?: string;
@@ -72,7 +74,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // We handle section status transitions (IN_PROGRESS/COMPLETED) at the end of saving
+    if (sectionAttempt.status === SectionStatus.COMPLETED || sectionAttempt.status === SectionStatus.TIMED_OUT) {
+      return NextResponse.json(
+        { error: 'Seksi ini telah selesai atau habis waktunya.', code: sectionAttempt.status },
+        { status: 400 }
+      );
+    }
+
+    // Validate server-side elapsed time with a 30-second grace period for network latency
+    if (sectionAttempt.startTime) {
+      const settings = await getTestSettings();
+      const durationMinutes = settings.durations[sectionType] || 10;
+      const maxAllowedSec = durationMinutes * 60 + 30;
+      const elapsedSec = Math.floor((Date.now() - new Date(sectionAttempt.startTime).getTime()) / 1000);
+
+      if (elapsedSec > maxAllowedSec) {
+        await prisma.sectionAttempt.update({
+          where: { id: sectionAttempt.id },
+          data: {
+            status: SectionStatus.TIMED_OUT,
+            endTime: new Date(),
+          },
+        });
+
+        return NextResponse.json(
+          { error: 'Waktu pengerjaan seksi ini telah habis.', code: 'TIMED_OUT' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Save objective answers (Vocabulary, Grammar, Reading)
     if (

@@ -15,6 +15,7 @@ export type TestQuestion = {
 export type TestSection = {
   section: TestSectionKind;
   durationMinutes: number;
+  remainingSeconds?: number | null;
   questions: TestQuestion[];
 };
 

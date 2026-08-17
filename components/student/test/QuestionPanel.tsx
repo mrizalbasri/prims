@@ -94,9 +94,17 @@ export default function QuestionPanel({
   isSectionComplete,
   moveNext,
 }: QuestionPanelProps) {
+  const handlePreventCopy = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+  };
+
   if (currentSection.section === "reading") {
     return (
-      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
+      <div 
+        className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 select-none"
+        onCopy={handlePreventCopy}
+        onContextMenu={handlePreventCopy}
+      >
         <div className="max-h-[calc(100vh-16rem)] overflow-y-auto rounded-3xl border border-gray-150 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-850 md:p-8 lg:sticky lg:top-24">
           <HighlightableText text={readingPassage ?? ""} key={readingPassage} />
         </div>
@@ -125,7 +133,11 @@ export default function QuestionPanel({
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div 
+      className="mx-auto max-w-3xl space-y-8 select-none"
+      onCopy={handlePreventCopy}
+      onContextMenu={handlePreventCopy}
+    >
       {currentSection.section === "listening" && listeningGroups.length > 0 && (
         <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-6 dark:border-blue-900/30 dark:bg-blue-500/10">
           <div className="mb-4 flex items-center justify-between">

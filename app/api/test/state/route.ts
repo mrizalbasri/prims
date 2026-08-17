@@ -84,7 +84,15 @@ export async function GET(request: NextRequest) {
     // Construct frontend sections format with loaded questions/prompts
     const sectionsData = SECTION_TYPES_ORDER.map((secType) => {
       const sa = testAttempt.sectionAttempts.find((s) => s.sectionType === secType);
-      
+      const durationMinutes = settings.durations[secType] || DURATION_MAP[secType];
+      const durationSec = durationMinutes * 60;
+
+      let remainingSeconds: number | null = null;
+      if (sa && sa.startTime) {
+        const elapsedSec = Math.floor((Date.now() - new Date(sa.startTime).getTime()) / 1000);
+        remainingSeconds = Math.max(0, durationSec - elapsedSec);
+      }
+
       let questions: FrontendQuestion[] = [];
       if (sa && sa.feedback) {
         try {
@@ -111,7 +119,9 @@ export async function GET(request: NextRequest) {
 
       return {
         section: FRONTEND_SECTION_MAP[secType],
-        durationMinutes: settings.durations[secType] || DURATION_MAP[secType],
+        durationMinutes,
+        startTime: sa?.startTime || null,
+        remainingSeconds,
         questions,
       };
     });
@@ -146,6 +156,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const activeSection = sectionsData[activeSectionIndex];
+
     return NextResponse.json(
       {
         attempt: {
@@ -157,6 +169,7 @@ export async function GET(request: NextRequest) {
         },
         sections: sectionsData,
         activeSectionIndex,
+        activeRemainingSeconds: activeSection?.remainingSeconds ?? null,
       },
       { status: 200 }
     );
