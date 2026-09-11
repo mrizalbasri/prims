@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+import { uploadAudio } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,21 +47,15 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Ensure uploads directory exists
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'audio');
-    await fs.mkdir(uploadDir, { recursive: true });
-
     // 5. Generate cryptographically secure unique file name
     const timestamp = Date.now();
     const randomString = crypto.randomBytes(8).toString('hex');
     const fileName = `${timestamp}_${randomString}${cleanedExt}`;
-    const filePath = path.join(uploadDir, fileName);
 
-    // Write file to disk
-    await fs.writeFile(filePath, buffer);
+    // Upload via cloud storage (R2/S3) or fallback to local disk
+    const { url, provider } = await uploadAudio(buffer, fileName, file.type);
 
-    const relativeUrl = `/uploads/audio/${fileName}`;
-    return NextResponse.json({ url: relativeUrl }, { status: 200 });
+    return NextResponse.json({ url, provider }, { status: 200 });
   } catch (error) {
     console.error('File upload error:', error);
     return NextResponse.json({ error: 'Internal server error during upload' }, { status: 500 });

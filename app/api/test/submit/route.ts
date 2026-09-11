@@ -4,6 +4,7 @@ import { SectionType, SectionStatus, TestAttemptStatus, Prisma } from '@prisma/c
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI, scoreSpeakingWithAI, finalizeTestResults, calculateWeightedScore } from '@/lib/scoring';
+import { enqueueAIScoring } from '@/lib/queue';
 
 interface SubmitTestRequest {
   testAttemptId?: string;
@@ -107,12 +108,17 @@ export async function POST(request: NextRequest) {
       { testAttemptId }
     );
 
-    // Process AI scoring asynchronously using after to keep serverless function alive
-    after(async () => {
-      await processAIScoring(testAttemptId).catch((error) => {
-        console.error('AI scoring error:', error);
-      });
-    });
+    // Process AI scoring via BullMQ queue with automatic retry, or fallback to in-process after()
+    await enqueueAIScoring(
+      { type: 'TEST_SCORING', testAttemptId },
+      async () => {
+        after(async () => {
+          await processAIScoring(testAttemptId).catch((error) => {
+            console.error('AI scoring error:', error);
+          });
+        });
+      }
+    );
 
     return NextResponse.json(
       {

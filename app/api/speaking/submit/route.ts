@@ -4,6 +4,7 @@ import { ResponseStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreSpeakingWithAI } from '@/lib/scoring';
+import { enqueueAIScoring } from '@/lib/queue';
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,19 +98,32 @@ export async function POST(request: NextRequest) {
       { scenarioId, durationSec }
     );
 
-    // Process AI scoring asynchronously using after to keep serverless function alive
-    after(async () => {
-      await processSpeakingScoring(
-        session.id,
+    // Process AI scoring via BullMQ queue with automatic retry, or fallback to in-process after()
+    await enqueueAIScoring(
+      {
+        type: 'SPEAKING_SCORING',
+        sessionId: session.id,
         transcriptText,
-        scenario.title,
-        scenario.description,
-        scenario.rubric,
-        audioUrl
-      ).catch((error) => {
-        console.error('Speaking scoring error:', error);
-      });
-    });
+        scenarioTitle: scenario.title,
+        scenarioDescription: scenario.description,
+        rubric: scenario.rubric,
+        audioUrl: audioUrl || undefined,
+      },
+      async () => {
+        after(async () => {
+          await processSpeakingScoring(
+            session.id,
+            transcriptText,
+            scenario.title,
+            scenario.description,
+            scenario.rubric,
+            audioUrl
+          ).catch((error) => {
+            console.error('Speaking scoring error:', error);
+          });
+        });
+      }
+    );
 
     return NextResponse.json(
       {

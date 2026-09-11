@@ -4,6 +4,7 @@ import { ResponseStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI } from '@/lib/scoring';
+import { enqueueAIScoring } from '@/lib/queue';
 
 export async function POST(request: NextRequest) {
   try {
@@ -98,14 +99,25 @@ export async function POST(request: NextRequest) {
       { promptId, wordCount }
     );
 
-    // Process AI scoring asynchronously using after to keep serverless function alive
-    after(async () => {
-      await processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
-        (error) => {
-          console.error('Writing scoring error:', error);
-        }
-      );
-    });
+    // Process AI scoring via BullMQ queue with automatic retry, or fallback to in-process after()
+    await enqueueAIScoring(
+      {
+        type: 'WRITING_SCORING',
+        submissionId: submission.id,
+        responseText,
+        promptText: prompt.promptText,
+        rubric: prompt.rubric,
+      },
+      async () => {
+        after(async () => {
+          await processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
+            (error) => {
+              console.error('Writing scoring error:', error);
+            }
+          );
+        });
+      }
+    );
 
     return NextResponse.json(
       {

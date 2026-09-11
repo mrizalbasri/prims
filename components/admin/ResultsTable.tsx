@@ -16,6 +16,7 @@ export type Row = {
   scores: {
     vocabulary: number;
     grammar: number;
+    listening: number;
     reading: number;
     writing: number;
     speaking: number;
