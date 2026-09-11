@@ -13,9 +13,10 @@ function createPrismaClient(): PrismaClient {
     throw new Error("DATABASE_URL is required to initialize PrismaClient");
   }
 
+  // ponytail: fallback to 15 connections to prevent pool exhaustion during concurrent exams
   const connectionLimit = process.env.DATABASE_MAX_CONNECTIONS
     ? parseInt(process.env.DATABASE_MAX_CONNECTIONS, 10)
-    : 2;
+    : 15;
 
   const adapter = new PrismaPg(
     new Pool({

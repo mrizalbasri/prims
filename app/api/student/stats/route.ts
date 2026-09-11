@@ -21,13 +21,12 @@ export async function GET(request: NextRequest) {
           },
         }),
 
-        // Writing submissions (via WritingResponse)
-        prisma.writingResponse.count({
+        // ponytail: Count self-practice writing submissions and speaking sessions
+        prisma.writingSubmission.count({
           where: { userId: user.id },
         }),
 
-        // Speaking sessions (via SpeakingResponse)
-        prisma.speakingResponse.count({
+        prisma.speakingSession.count({
           where: { userId: user.id },
         }),
 

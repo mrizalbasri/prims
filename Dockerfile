@@ -33,9 +33,12 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Ambil hasil build standalone
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# ponytail: ensure audio uploads directory exists with correct write permissions for nextjs user
+RUN mkdir -p ./public/uploads/audio && chown -R nextjs:nodejs ./public/uploads
 
 USER nextjs
 

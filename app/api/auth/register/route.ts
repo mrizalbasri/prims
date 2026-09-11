@@ -53,10 +53,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Strict admin email domain whitelist
-    const role = (emailDomain === 'admin.president.ac.id') 
-      ? UserRole.ADMIN 
-      : UserRole.STUDENT;
+    // ponytail: all public registrations default strictly to STUDENT role to prevent privilege escalation
+    const role = UserRole.STUDENT;
 
     // Hash password
     const passwordHash = await hashPassword(body.password);

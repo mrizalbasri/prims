@@ -54,7 +54,7 @@ async function verifyJwt(token: string, secret: string) {
   }
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value;
   const loginUrl = new URL('/login', request.url);
 
@@ -75,6 +75,10 @@ export async function proxy(request: NextRequest) {
 
   return NextResponse.next();
 }
+
+// ponytail: export proxy alias for forward compatibility with Next.js 16 conventions
+export { middleware as proxy };
+export default middleware;
 
 export const config = {
   matcher: ['/admin/:path*'],
