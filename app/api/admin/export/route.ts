@@ -128,11 +128,21 @@ export async function GET(request: NextRequest) {
       ];
     });
 
+    // ponytail: Sanitize CSV cells against CSV formula injection (=, +, -, @)
+    const sanitizeCsvCell = (cell: string): string => {
+      const str = String(cell ?? '');
+      const escaped = str.replace(/"/g, '""');
+      if (/^[=+\-@]/.test(escaped)) {
+        return `"'${escaped}"`;
+      }
+      return `"${escaped}"`;
+    };
+
     // Build CSV string
     const csvContent = [
       csvHeaders.join(','),
       ...csvRows.map((row: string[]) =>
-        row.map((cell: string) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        row.map((cell: string) => sanitizeCsvCell(cell)).join(',')
       ),
     ].join('\n');
 

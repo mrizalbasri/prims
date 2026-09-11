@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { DEFAULT_QUESTIONS_COUNT, DEFAULT_DURATIONS, getTestSettings } from "@/lib/settings";
+import { DEFAULT_QUESTIONS_COUNT, DEFAULT_DURATIONS, getTestSettings, getTeacherTokens, updateTeacherTokens } from "@/lib/settings";
 import { SectionType } from "@prisma/client";
 
 /**
@@ -14,8 +14,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const settings = await getTestSettings();
-    return NextResponse.json(settings, { status: 200 });
+    const [settings, teacherTokens] = await Promise.all([
+      getTestSettings(),
+      getTeacherTokens(),
+    ]);
+    return NextResponse.json({ ...settings, teacherTokens }, { status: 200 });
   } catch (error) {
     console.error("Fetch settings error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -32,7 +35,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { counts, durations } = await request.json();
+    const { counts, durations, teacherTokens } = await request.json();
 
     if (!counts || !durations) {
       return NextResponse.json({ error: "Counts and durations are required" }, { status: 400 });
@@ -66,12 +69,22 @@ export async function PUT(request: NextRequest) {
       }
     });
 
+    let updatedTeacherTokens: string[] | undefined;
+    if (Array.isArray(teacherTokens)) {
+      updatedTeacherTokens = await updateTeacherTokens(teacherTokens);
+    } else {
+      updatedTeacherTokens = await getTeacherTokens();
+    }
+
     const updatedSettings = await getTestSettings();
 
     return NextResponse.json(
       {
         message: "Settings updated successfully",
-        settings: updatedSettings,
+        settings: {
+          ...updatedSettings,
+          teacherTokens: updatedTeacherTokens,
+        },
       },
       { status: 200 }
     );

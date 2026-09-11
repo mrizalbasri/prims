@@ -52,3 +52,36 @@ export async function getTestSettings(): Promise<TestSettings> {
     return { counts: DEFAULT_QUESTIONS_COUNT, durations: DEFAULT_DURATIONS };
   }
 }
+
+export const DEFAULT_TEACHER_TOKENS = ['DOSEN-PRISM-2026', 'ENGLISH-101', 'PRESIDENT-UNIV'];
+
+export async function getTeacherTokens(): Promise<string[]> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'teacher_tokens' },
+    });
+    if (!setting || !setting.value) {
+      return DEFAULT_TEACHER_TOKENS;
+    }
+    const parsed = JSON.parse(setting.value);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((t) => String(t).trim().toUpperCase()).filter(Boolean);
+    }
+    return DEFAULT_TEACHER_TOKENS;
+  } catch (e) {
+    console.warn("Could not load teacher tokens from DB, returning defaults:", e);
+    return DEFAULT_TEACHER_TOKENS;
+  }
+}
+
+export async function updateTeacherTokens(tokens: string[]): Promise<string[]> {
+  const sanitized = Array.from(
+    new Set(tokens.map((t) => String(t).trim().toUpperCase()).filter(Boolean))
+  );
+  await prisma.systemSetting.upsert({
+    where: { key: 'teacher_tokens' },
+    update: { value: JSON.stringify(sanitized) },
+    create: { key: 'teacher_tokens', value: JSON.stringify(sanitized) },
+  });
+  return sanitized;
+}

@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
-import { scoreObjectiveAnswer } from '@/lib/scoring';
 
 import { getTestSettings } from '@/lib/settings';
 
@@ -104,7 +103,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Save objective answers (Vocabulary, Grammar, Reading)
+    // ponytail: Parse feedback once outside loop and batch upsert in a single transaction to eliminate N+1 queries
     if (
       (sectionType === SectionType.VOCABULARY ||
         sectionType === SectionType.GRAMMAR ||
@@ -113,36 +112,57 @@ export async function POST(request: NextRequest) {
       answers &&
       typeof answers === 'object'
     ) {
+      const questionsMap = new Map<string, string>();
+      if (sectionAttempt.feedback) {
+        try {
+          const parsed = JSON.parse(sectionAttempt.feedback);
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            for (const q of parsed.questions) {
+              if (q.id && q.correctAnswer) {
+                questionsMap.set(q.id, q.correctAnswer);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing sectionAttempt feedback for answers:', e);
+        }
+      }
+
+      const upsertOperations = [];
       for (const [questionId, selectedOption] of Object.entries(answers)) {
         // Only save answers for the current section type to keep it clean
         if (questionId.startsWith(sectionType)) {
-          const { isCorrect, score } = await scoreObjectiveAnswer(
-            sectionAttempt.id,
-            questionId,
-            selectedOption
-          );
+          const correctAnswer = questionsMap.get(questionId);
+          const isCorrect = correctAnswer ? selectedOption === correctAnswer : false;
+          const score = isCorrect ? 1 : 0;
 
-          await prisma.objectiveAnswer.upsert({
-            where: {  
-              sectionAttemptId_questionId: {
+          upsertOperations.push(
+            prisma.objectiveAnswer.upsert({
+              where: {
+                sectionAttemptId_questionId: {
+                  sectionAttemptId: sectionAttempt.id,
+                  questionId: questionId,
+                },
+              },
+              create: {
                 sectionAttemptId: sectionAttempt.id,
                 questionId: questionId,
+                selectedOption: selectedOption,
+                isCorrect,
+                score,
               },
-            },
-            create: {
-              sectionAttemptId: sectionAttempt.id,
-              questionId: questionId,
-              selectedOption: selectedOption,
-              isCorrect,
-              score,
-            },
-            update: {
-              selectedOption: selectedOption,
-              isCorrect,
-              score,
-            },
-          });
+              update: {
+                selectedOption: selectedOption,
+                isCorrect,
+                score,
+              },
+            })
+          );
         }
+      }
+
+      if (upsertOperations.length > 0) {
+        await prisma.$transaction(upsertOperations);
       }
     }
 

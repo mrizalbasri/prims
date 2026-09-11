@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type SectionSettings = {
   counts: Record<string, number>;
   durations: Record<string, number>;
+  teacherTokens?: string[];
 };
 
 export default function SettingsTab() {
@@ -16,6 +17,8 @@ export default function SettingsTab() {
   // Form State
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [durations, setDurations] = useState<Record<string, number>>({});
+  const [teacherTokens, setTeacherTokens] = useState<string[]>([]);
+  const [newTokenInput, setNewTokenInput] = useState<string>("");
 
   useEffect(() => {
     async function fetchSettings() {
@@ -26,6 +29,7 @@ export default function SettingsTab() {
           const data: SectionSettings = await res.json();
           setCounts(data.counts || {});
           setDurations(data.durations || {});
+          setTeacherTokens(data.teacherTokens || ["DOSEN-PRISM-2026", "ENGLISH-101", "PRESIDENT-UNIV"]);
         } else {
           setErrorMessage("Gagal memuat pengaturan.");
         }
@@ -38,6 +42,27 @@ export default function SettingsTab() {
     void fetchSettings();
   }, []);
 
+  function handleAddToken() {
+    const trimmed = newTokenInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (teacherTokens.includes(trimmed)) {
+      setErrorMessage(`Token "${trimmed}" sudah ada.`);
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
+    setTeacherTokens((prev) => [...prev, trimmed]);
+    setNewTokenInput("");
+  }
+
+  function handleRemoveToken(tokenToRemove: string) {
+    if (teacherTokens.length <= 1) {
+      setErrorMessage("Minimal harus ada satu token aktif.");
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
+    setTeacherTokens((prev) => prev.filter((t) => t !== tokenToRemove));
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setIsSaving(true);
@@ -48,14 +73,17 @@ export default function SettingsTab() {
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ counts, durations }),
+        body: JSON.stringify({ counts, durations, teacherTokens }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setCounts(data.settings.counts || {});
         setDurations(data.settings.durations || {});
-        setSuccessMessage("Pengaturan tes berhasil diperbarui!");
+        if (data.settings.teacherTokens) {
+          setTeacherTokens(data.settings.teacherTokens);
+        }
+        setSuccessMessage("Pengaturan tes dan token dosen berhasil diperbarui!");
         setTimeout(() => setSuccessMessage(null), 4000);
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -97,11 +125,11 @@ export default function SettingsTab() {
           <div className="flex items-center gap-3">
             <div className="h-6 w-px bg-blue-600 dark:bg-blue-400"></div>
             <h1 className="font-hanken text-3xl font-extrabold text-gray-955 dark:text-white">
-              Pengaturan Ujian
+              Pengaturan Sistem & Ujian
             </h1>
           </div>
           <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
-            Konfigurasi batasan jumlah soal dan durasi waktu tes yang akan dimuat dinamis saat mahasiswa menempuh ujian.
+            Konfigurasi batasan jumlah soal, durasi waktu ujian, dan token akses dosen untuk membuka modul mahasiswa.
           </p>
         </div>
       </header>
@@ -201,6 +229,70 @@ export default function SettingsTab() {
           })}
         </div>
 
+        {/* Teacher Token Management Card */}
+        <div className="bg-white dark:bg-gray-850 border border-gray-150 dark:border-gray-700/70 rounded-3xl p-6 md:p-8 space-y-6 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-amber-500 bg-amber-50 dark:bg-amber-900/20">
+              <span className="material-symbols-outlined text-2xl">key</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-hanken font-bold text-base text-gray-900 dark:text-white leading-none">
+                Token Dosen (Akses Modul Belajar)
+              </h3>
+              <p className="font-inter text-xs text-gray-400 dark:text-gray-500 leading-normal">
+                Kelola daftar kode token resmi yang dapat digunakan mahasiswa untuk membuka akses modul belajar secara mandiri.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+            {/* Token Badges */}
+            <div className="flex flex-wrap gap-2.5">
+              {teacherTokens.map((tok) => (
+                <span
+                  key={tok}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-300 font-mono text-xs font-bold"
+                >
+                  <span>{tok}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveToken(tok)}
+                    className="hover:text-red-500 transition-colors p-0.5 rounded-md cursor-pointer"
+                    title="Hapus token"
+                  >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {/* Add New Token Input */}
+            <div className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                placeholder="Contoh: DOSEN-PRISM-2026"
+                value={newTokenInput}
+                onChange={(e) => setNewTokenInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddToken();
+                  }
+                }}
+                className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-250 dark:border-gray-750 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-amber-500 text-gray-900 dark:text-white font-mono uppercase"
+              />
+              <button
+                type="button"
+                onClick={handleAddToken}
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold font-hanken transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                <span>Tambah</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Submit Bar */}
         <div className="flex justify-end p-2">
           <button
@@ -216,7 +308,7 @@ export default function SettingsTab() {
             ) : (
               <>
                 <span className="material-symbols-outlined text-lg">save</span>
-                <span>Simpan Pengaturan Tes</span>
+                <span>Simpan Seluruh Pengaturan</span>
               </>
             )}
           </button>

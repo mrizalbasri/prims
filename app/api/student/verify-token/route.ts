@@ -6,8 +6,7 @@ import { getCurrentUserFromRequest } from '@/lib/auth';
 
 
 
-// This would typically come from an env var, database, or a more complex validation system
-const VALID_TEACHER_TOKENS = ['DOSEN-PRISM-2026', 'ENGLISH-101', 'PRESIDENT-UNIV'];
+import { getTeacherTokens } from '@/lib/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +18,8 @@ export async function POST(request: NextRequest) {
 
     const { token } = await request.json();
 
-    if (!token || !VALID_TEACHER_TOKENS.includes(token.trim().toUpperCase())) {
+    const validTokens = await getTeacherTokens();
+    if (!token || !validTokens.includes(token.trim().toUpperCase())) {
       return NextResponse.json({ error: 'Token tidak valid. Silakan tanya dosen Anda.' }, { status: 400 });
     }
 
