@@ -130,4 +130,47 @@ describe("ai-engine-client", () => {
       );
     });
   });
+
+  describe("Audio TTS helpers", () => {
+    it("should fetch available voices list", async () => {
+      const mockVoices = [
+        {
+          name: "en_US-lessac-medium",
+          language: "en_US",
+          gender: "female",
+          quality: "medium",
+          description: "Clear voice",
+          is_downloaded: true,
+        },
+      ];
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockVoices), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+      const { getAvailableVoices } = await import("../lib/ai-engine-client");
+      const voices = await getAvailableVoices();
+      expect(voices).toHaveLength(1);
+      expect(voices[0].name).toBe("en_US-lessac-medium");
+    });
+
+    it("should generate speech audio buffer successfully", async () => {
+      const dummyWavBytes = new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69]); // RIFF...WAVE
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(dummyWavBytes.buffer, {
+          status: 200,
+          headers: { "Content-Type": "audio/wav" },
+        })
+      );
+
+      const { generateSpeechAudio } = await import("../lib/ai-engine-client");
+      const buffer = await generateSpeechAudio("Test sentence");
+      expect(buffer.byteLength).toBe(dummyWavBytes.byteLength);
+    });
+  });
 });
+

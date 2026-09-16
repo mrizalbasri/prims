@@ -25,3 +25,8 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local model weights and downloads
+models/
+*.onnx
+*.onnx.json

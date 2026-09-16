@@ -68,3 +68,8 @@ ai-engine/.venv/
 htmlcov/
 ai-engine/.env
 !ai-engine/.env.example
+
+# AI & TTS Model Binaries
+ai-engine/models/
+*.onnx
+*.onnx.json

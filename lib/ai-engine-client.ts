@@ -146,3 +146,69 @@ export async function requestAiEngine<T>(
     clearTimeout(timeoutId);
   }
 }
+
+export interface VoiceInfo {
+  name: string;
+  language: string;
+  gender: string;
+  quality: string;
+  description: string;
+  is_downloaded: boolean;
+}
+
+/**
+ * Fetch catalog of supported voices from the AI Engine.
+ */
+export async function getAvailableVoices(): Promise<VoiceInfo[]> {
+  return requestAiEngine<VoiceInfo[]>("/api/v1/audio/voices", { method: "GET" });
+}
+
+/**
+ * Request speech synthesis from text and return raw audio ArrayBuffer (WAV).
+ */
+export async function generateSpeechAudio(
+  text: string,
+  voice = "en_US-lessac-medium",
+  speed = 1.0,
+  timeoutMs = 60000
+): Promise<ArrayBuffer> {
+  const baseUrl = getAiEngineUrl();
+  const internalKey = getAiEngineKey();
+  const url = `${baseUrl}/api/v1/audio/tts`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Secret": internalKey,
+      },
+      body: JSON.stringify({ text, voice, speed }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let errorDetail = response.statusText;
+      try {
+        const errorJson = await response.json();
+        errorDetail = errorJson.detail || errorJson.error || JSON.stringify(errorJson);
+      } catch {
+        // fallback
+      }
+      throw new Error(`AI Engine TTS Error [${response.status}]: ${errorDetail}`);
+    }
+
+    return await response.arrayBuffer();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`TTS synthesis timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+

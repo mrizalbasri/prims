@@ -5,8 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from app.api.v1.router import api_v1_router
 from app.core.config import settings
+from app.modules.router import api_v1_router
+
 
 # Configure logging
 logging.basicConfig(
