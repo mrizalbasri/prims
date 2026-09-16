@@ -46,3 +46,25 @@ next-env.d.ts
 
 .docs
 .codegraph
+
+# Internal documentation & AI configs
+/docs/
+PRISM_PRD_v2.md
+SETUP.md
+CLAUDE.md
+AGENTS.md
+
+# Python & AI Engine
+ai-engine/.venv/
+**/.venv/
+**/env/
+**/venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+ai-engine/.env
+!ai-engine/.env.example

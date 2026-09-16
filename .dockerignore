@@ -1,0 +1,39 @@
+# Git & System
+.git
+.gitignore
+.DS_Store
+Thumbs.db
+
+# Node.js & Next.js Build
+node_modules
+.next
+out
+build
+coverage
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python & AI Engine artifacts
+ai-engine/.venv
+ai-engine/.env
+ai-engine/__pycache__
+**/.venv
+**/__pycache__
+*.py[cod]
+.pytest_cache
+
+# Secrets & Environment variables
+.env*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# Documentation
+docs/
+PRISM_PRD_v2.md
+SETUP.md
+CLAUDE.md
+AGENTS.md
