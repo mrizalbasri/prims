@@ -212,3 +212,45 @@ export async function generateSpeechAudio(
   }
 }
 
+export interface QuestionItem {
+  questionText: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface QuestionGenerateRequest {
+  sectionType: "VOCABULARY" | "GRAMMAR" | "READING" | "LISTENING";
+  difficulty?: string;
+  count?: number;
+  topic?: string;
+  generateAudio?: boolean;
+  voice?: string;
+  speed?: number;
+}
+
+export interface QuestionGenerateResponse {
+  sectionType: string;
+  difficulty: string;
+  readingPassage?: string;
+  audioScript?: string;
+  audioBase64?: string;
+  questions: QuestionItem[];
+  totalQuestions: number;
+}
+
+/**
+ * Generate a validated package of academic questions using the AI Engine.
+ */
+export async function generateQuestions(
+  payload: QuestionGenerateRequest,
+  timeoutMs = 90000
+): Promise<QuestionGenerateResponse> {
+  return requestAiEngine<QuestionGenerateResponse>("/api/v1/questions/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    timeoutMs,
+  });
+}
+
+

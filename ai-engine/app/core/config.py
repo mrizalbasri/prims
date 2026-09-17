@@ -27,6 +27,17 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # LLM Services
+    LLM_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: Union[str, None] = None
+    GEMINI_BASE_URL: Union[str, None] = None
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
+    MINIMAX_API_KEY: Union[str, None] = None
+    MINIMAX_BASE_URL: str = "https://api.tokenrouter.com/v1"
+    MINIMAX_MODEL: str = "MiniMax-M3"
+
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

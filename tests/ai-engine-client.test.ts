@@ -172,5 +172,44 @@ describe("ai-engine-client", () => {
       expect(buffer.byteLength).toBe(dummyWavBytes.byteLength);
     });
   });
+
+  describe("Question Generator helpers", () => {
+    it("should generate structured questions successfully", async () => {
+      const mockQuestionsResponse = {
+        sectionType: "GRAMMAR",
+        difficulty: "INTERMEDIATE",
+        questions: [
+          {
+            questionText: "The team ______ the project on time.",
+            options: ["completed", "complete", "completing", "has complete"],
+            correctAnswer: "completed",
+            explanation: "Past simple tense is required.",
+          },
+        ],
+        totalQuestions: 1,
+      };
+
+      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockQuestionsResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+      const { generateQuestions } = await import("../lib/ai-engine-client");
+      const result = await generateQuestions({
+        sectionType: "GRAMMAR",
+        count: 1,
+      });
+
+      expect(result.sectionType).toBe("GRAMMAR");
+      expect(result.totalQuestions).toBe(1);
+      expect(result.questions[0].correctAnswer).toBe("completed");
+
+      const [calledUrl] = fetchSpy.mock.calls[0];
+      expect(calledUrl).toBe("http://127.0.0.1:8000/api/v1/questions/generate");
+    });
+  });
 });
+
 
