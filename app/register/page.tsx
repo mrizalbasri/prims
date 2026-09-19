@@ -92,7 +92,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email Kampus
+                Email
               </label>
               <input
                 name="email"
@@ -101,7 +101,7 @@ export default function RegisterPage() {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                placeholder="nama@student.president.ac.id"
+                placeholder="nama@gmail.com"
               />
             </div>
 

@@ -18,9 +18,31 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PRISM — AI English Platform',
+  title: 'PRISM — President Readiness in English Skill Measurement',
+  description: 'Platform placement test Bahasa Inggris + modul pembelajaran mandiri berbasis AI untuk mahasiswa.',
+  keywords: [
+    "PRISM",
+    "placement test bahasa inggris",
+    "tes kemampuan bahasa inggris online",
+    "platform belajar bahasa inggris berbasis ai",
+    "prism english placement test",
+    "latihan writing feedback ai",
+    "latihan speaking bahasa inggris ai",
+    "vocabulary flashcard mahasiswa",
+    "edtech kampus indonesia",
+    "english skill measurement",
+    "president university english test"
+  ],
+  authors: [{ name: "PRISM Team" }],
+  applicationName: "PRISM",
+  openGraph: {
+    title: "PRISM — AI-Powered English Placement Test & Learning Platform",
+    description: "Platform placement test Bahasa Inggris dan modul pembelajaran mandiri berbasis AI untuk mahasiswa.",
+    siteName: "PRISM",
+    locale: "id_ID",
+    type: "website",
+  },
   icons: { icon: '/favicon.ico', apple: '/logo.webp' },
-  description: "AI-powered English learning platform",
 };
 
 export default function RootLayout({

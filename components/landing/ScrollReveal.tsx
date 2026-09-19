@@ -21,6 +21,22 @@ export default function ScrollReveal({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // If browser doesn't support IntersectionObserver, reveal immediately
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+      setIsVisible(true);
+      return;
+    }
+
+    const currentRef = ref.current;
+    if (currentRef) {
+      // If already in viewport on initial render, reveal immediately without scroll delay
+      const rect = currentRef.getBoundingClientRect();
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        setIsVisible(true);
+        return;
+      }
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -34,12 +50,11 @@ export default function ScrollReveal({
         }
       },
       {
-        threshold: 0.05, // Trigger when 5% of the element is visible
-        rootMargin: "0px 0px -30px 0px", // Trigger slightly before it enters the viewport fully
+        threshold: 0.01,
+        rootMargin: "0px 0px 60px 0px", // Reveal slightly ahead of scroll
       }
     );
 
-    const currentRef = ref.current;
     if (currentRef) {
       observer.observe(currentRef);
     }
