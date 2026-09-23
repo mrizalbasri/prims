@@ -1,7 +1,7 @@
 import json
 from functools import lru_cache
 from typing import List, Union
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # Internal security token for Next.js <-> FastAPI communication
-    INTERNAL_API_KEY: str = "prism_internal_secret_change_me"
+    INTERNAL_API_KEY: Union[str, None] = None
 
     # CORS origins
     CORS_ORIGINS: Union[List[str], str] = [
@@ -56,6 +56,13 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_internal_api_key(self) -> "Settings":
+        if self.ENVIRONMENT.lower() in {"production", "staging"}:
+            if not self.INTERNAL_API_KEY or self.INTERNAL_API_KEY == "prism_internal_secret_change_me":
+                raise ValueError("INTERNAL_API_KEY must be configured in production and staging")
+        return self
 
 
 @lru_cache()
