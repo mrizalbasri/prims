@@ -5,6 +5,14 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    include: ["tests/**/*.test.{ts,tsx}"],
+    exclude: [
+      "node_modules/**",
+      ".git/**",
+      ".next/**",
+      ".kilo/**",
+      "coverage/**",
+    ],
     env: {
       DATABASE_URL: "postgresql://test:test@localhost:5432/test_db",
       JWT_SECRET: "test-secret-key-for-vitest-12345",
