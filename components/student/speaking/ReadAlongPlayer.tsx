@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 interface ReadAlongPlayerProps {
   scenario: {
@@ -20,12 +20,29 @@ interface SpeechRecognitionInstance {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: (event: any) => void;
-  onerror: (event: any) => void;
+  onresult: (event: SpeechRecognitionResultEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
   onend: () => void;
   start: () => void;
   stop: () => void;
 }
+
+interface SpeechRecognitionResultEvent {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: {
+      isFinal: boolean;
+      [index: number]: { transcript: string };
+    };
+  };
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitting }: ReadAlongPlayerProps) {
   const [activeWordIdx, setActiveWordIdx] = useState(-1);
@@ -54,6 +71,33 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
   const autoScrollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const timeTrackerTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const stopAllActivities = useCallback(() => {
+    if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
+    if (timeTrackerTimerRef.current) clearInterval(timeTrackerTimerRef.current);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  const finishReading = useCallback(async () => {
+    setIsPlaying(false);
+    stopAllActivities();
+  }, [stopAllActivities]);
+
   // Helper clean function for matching words
   const cleanWord = (w: string) => w.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
 
@@ -62,20 +106,24 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
     return () => {
       stopAllActivities();
     };
-  }, []);
+  }, [stopAllActivities]);
 
   // Set up Speech Recognition on load
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const speechWindow = window as Window & {
+        SpeechRecognition?: SpeechRecognitionConstructor;
+        webkitSpeechRecognition?: SpeechRecognitionConstructor;
+      };
       const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
         rec.lang = "en-US";
 
-        rec.onresult = (event: any) => {
+        rec.onresult = (event: SpeechRecognitionResultEvent) => {
           let currentSpoken = "";
           let finalTranscriptPart = "";
           
@@ -127,7 +175,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
           }
         };
 
-        rec.onerror = (err: any) => {
+        rec.onerror = (err: SpeechRecognitionErrorEvent) => {
           console.error("Speech recognition error in player:", err.error);
         };
 
@@ -136,7 +184,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
           if (isPlaying && scrollMode === "karaoke" && recognitionRef.current) {
             try {
               recognitionRef.current.start();
-            } catch (e) {
+            } catch {
               // Ignore already started errors
             }
           }
@@ -145,7 +193,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
         recognitionRef.current = rec;
       }
     }
-  }, [scrollMode, isPlaying]);
+  }, [finishReading, isPlaying, scrollMode]);
 
   // Handle active word scrolling
   useEffect(() => {
@@ -178,7 +226,7 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
     return () => {
       if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
     };
-  }, [isPlaying, scrollMode, speedWPM]);
+  }, [finishReading, isPlaying, scrollMode, speedWPM]);
 
   // Handle countdown before start
   const startPractice = () => {
@@ -262,33 +310,6 @@ export default function ReadAlongPlayer({ scenario, onBack, onSubmit, isSubmitti
         return prev + 1;
       });
     }, 1000);
-  };
-
-  const finishReading = async () => {
-    setIsPlaying(false);
-    stopAllActivities();
-  };
-
-  const stopAllActivities = () => {
-    if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
-    if (timeTrackerTimerRef.current) clearInterval(timeTrackerTimerRef.current);
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-    }
-
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (e) {}
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
   };
 
   return (

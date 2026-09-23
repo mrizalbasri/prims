@@ -52,6 +52,10 @@ type Session = {
   };
 };
 
+type SessionApi = Partial<Session> & {
+  overallScore?: number;
+};
+
 export default function SpeakingPage() {
   const router = useRouter();
   const [scenarios, setScenarios] = useState<SpeakingScenario[]>([]);
@@ -344,10 +348,19 @@ export default function SpeakingPage() {
                 const historyRes = await fetch("/api/speaking/sessions");
                 if (historyRes.ok) {
                   const historyData = await historyRes.json();
-                  const mapped = (historyData.sessions || []).map((sess: any) => ({
-                    ...sess,
-                    score: sess.overallScore ?? sess.score ?? 0,
-                  }));
+                  const mapped = (historyData.sessions as SessionApi[] || [])
+                    .map((sess): Session | null => {
+                      if (!sess.id || !sess.submittedAt || !sess.scenario) return null;
+                      return {
+                        id: sess.id,
+                        score: sess.overallScore ?? sess.score ?? 0,
+                        scores: sess.scores,
+                        feedback: sess.feedback ?? null,
+                        submittedAt: sess.submittedAt,
+                        scenario: sess.scenario,
+                      };
+                    })
+                    .filter((session): session is Session => session !== null);
                   setSessions(mapped);
                 }
               } else if (s.status === "FAILED") {
@@ -633,7 +646,7 @@ export default function SpeakingPage() {
               </button>
             </div>
 
-            {scenarios.filter((s: any) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong).length === 0 ? (
+            {scenarios.filter((s) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong).length === 0 ? (
               <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
                 <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">mic</span>
                 <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">
@@ -648,7 +661,7 @@ export default function SpeakingPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {scenarios
-                  .filter((s: any) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong)
+                  .filter((s) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong)
                   .map((scenario) => (
                     <div key={scenario.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-red-500/40 transition-all flex flex-col justify-between group">
                       <div className="space-y-4">
@@ -692,7 +705,7 @@ export default function SpeakingPage() {
         )}
         {/* Recording / Speaking Interface */}
         {view === "practice" && selectedScenario && !showResult && (
-          (selectedScenario as any).isReadAlong ? (
+          selectedScenario.isReadAlong ? (
             <ReadAlongPlayer
               scenario={{
                 id: selectedScenario.id,
