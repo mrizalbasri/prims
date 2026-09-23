@@ -98,8 +98,8 @@ prism/
 
 ## Prasyarat
 
-- Node.js `18+`
-- npm
+- Node.js `22+`
+- pnpm `11+`
 - PostgreSQL `14+`
 
 ---
@@ -107,11 +107,11 @@ prism/
 ## Setup Cepat
 
 ```bash
-npm install
-npx prisma generate
-npx prisma db push
-npm run seed
-npm run dev
+pnpm install
+pnpm prisma generate
+pnpm prisma db push
+pnpm seed
+pnpm dev
 ```
 
 Akses aplikasi di: `http://localhost:3000`
@@ -154,12 +154,12 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ## Scripts
 
 ```bash
-npm run dev           # Jalankan dev server
-npm run build         # Build production
-npm run start         # Jalankan hasil build
-npm run lint          # Lint project
-npm run seed          # Seed data awal
-npm run seed:phase2   # Seed data fase 2
+pnpm dev              # Jalankan dev server
+pnpm build            # Build production
+pnpm start            # Jalankan hasil build
+pnpm lint             # Lint project
+pnpm seed             # Seed data awal
+pnpm seed:phase2      # Seed data fase 2
 ```
 
 ---
@@ -203,4 +203,4 @@ Jika kamu ingin menstabilkan dulu sebelum production, fokuskan perbaikan pada:
 
 - Jangan commit API keys ke repository.
 - Gunakan database terpisah untuk development dan production.
-- Jalankan `npm run lint` setelah perubahan besar.
+- Jalankan `pnpm lint` setelah perubahan besar.

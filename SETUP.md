@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 22+ and pnpm 11+
 - PostgreSQL 14+
 - Git
 
@@ -11,7 +11,7 @@
 ### 1. Clone and Install Dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 2. Database Setup
@@ -77,20 +77,20 @@ SPEAKING_TIME_LIMIT_SEC="420"
 ### 4. Run Database Migrations
 
 ```bash
-npx prisma generate
-npx prisma db push
+pnpm prisma generate
+pnpm prisma db push
 ```
 
 ### 5. Seed Initial Data (Optional)
 
 ```bash
-npm run seed
+pnpm seed
 ```
 
 ### 6. Start Development Server
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Visit `http://localhost:3000`
@@ -159,28 +159,28 @@ The Prisma schema includes:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Generate Prisma client
-npx prisma generate
+pnpm prisma generate
 
 # Push schema to database
-npx prisma db push
+pnpm prisma db push
 
 # Open Prisma Studio (database GUI)
-npx prisma studio
+pnpm prisma studio
 
 # Run development server
-npm run dev
+pnpm dev
 
 # Build for production
-npm run build
+pnpm build
 
 # Start production server
-npm start
+pnpm start
 
 # Run linter
-npm run lint
+pnpm lint
 ```
 
 ## Project Structure
@@ -211,12 +211,12 @@ prism/
 
 ### Prisma Client Issues
 ```bash
-npx prisma generate --force
+pnpm prisma generate --force
 ```
 
 ### Migration Issues
 ```bash
-npx prisma db push --force-reset
+pnpm prisma db push --force-reset
 ```
 
 ## Support
