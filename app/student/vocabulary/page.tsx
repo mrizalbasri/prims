@@ -344,7 +344,7 @@ export default function VocabularyPage() {
               <span className="material-symbols-outlined text-orange-600">local_fire_department</span>
               <span className="font-mono font-bold text-gray-900 dark:text-white text-sm">{sessionStats.streak}</span>
             </div>
-            <Link href="/student" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+            <Link href="/student" aria-label="Kembali ke dashboard" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
               <span className="material-symbols-outlined text-2xl">close</span>
             </Link>
           </div>
@@ -375,9 +375,17 @@ export default function VocabularyPage() {
 
         {currentCard && (
           <div className="space-y-8">
-            <div 
+            <button
+              type="button"
+              aria-label={isFlipped ? `Sembunyikan definisi ${currentCard.word}` : `Lihat definisi ${currentCard.word}`}
               className="relative w-full h-[360px] cursor-pointer perspective-1000"
               onClick={() => setIsFlipped(!isFlipped)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setIsFlipped((previous) => !previous);
+                }
+              }}
             >
               <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
                 {/* Front Side */}
@@ -430,7 +438,7 @@ export default function VocabularyPage() {
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
 
             {/* Repetition Quality Buttons */}
             {isFlipped && (

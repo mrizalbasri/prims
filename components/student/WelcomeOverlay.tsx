@@ -37,10 +37,10 @@ export function WelcomeOverlay({ onStartTest }: WelcomeOverlayProps) {
         {/* Stats panel */}
         <div className="flex-shrink-0 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6 grid grid-cols-2 gap-4 min-w-[220px]">
           {[
-            { label: 'Sections', value: '5', icon: 'layers' },
-            { label: 'Duration', value: '~45 min', icon: 'schedule' },
-            { label: 'Questions', value: '50+', icon: 'quiz' },
-            { label: 'Result', value: 'Instant', icon: 'bolt' },
+            { label: 'Seksi', value: '6', icon: 'layers' },
+            { label: 'Durasi', value: '~45 mnt', icon: 'schedule' },
+            { label: 'Soal', value: '50+', icon: 'quiz' },
+            { label: 'Hasil', value: 'Diproses AI', icon: 'bolt' },
           ].map((s) => (
             <div key={s.label} className="text-center">
               <span className="material-symbols-outlined text-blue-200 text-2xl">{s.icon}</span>

@@ -22,12 +22,12 @@ type StatePayload = {
 };
 
 const sectionLabels: Record<Section["section"], string> = {
-  vocabulary: "Vocabulary Assessment",
-  grammar: "Grammar Assessment",
-  listening: "Listening Comprehension",
-  reading: "Reading Comprehension",
-  writing: "Academic Essay Writing",
-  speaking: "Linguistic Speaking Test",
+  vocabulary: "Tes Kosakata",
+  grammar: "Tes Tata Bahasa",
+  listening: "Pemahaman Mendengarkan",
+  reading: "Pemahaman Membaca",
+  writing: "Penulisan Esai Akademik",
+  speaking: "Tes Berbicara",
 };
 
 export default function StudentTestPage() {
@@ -235,7 +235,7 @@ export default function StudentTestPage() {
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      const message = "Apakah Anda yakin ingin meninggalkan halaman? Progres ujian Anda saat ini akan dihentikan.";
+      const message = "Progres ujian disimpan otomatis, tetapi berpindah halaman dapat mengganggu pengerjaan dan tercatat sebagai aktivitas keluar dari ujian.";
       event.returnValue = message;
       return message;
     };
@@ -569,5 +569,4 @@ export default function StudentTestPage() {
     </div>
   );
 }
-
 

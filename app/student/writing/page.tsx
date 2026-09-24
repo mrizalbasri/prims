@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
+import FeedbackBanner from "@/components/student/FeedbackBanner";
 
 type WritingPrompt = {
   id: string;
@@ -44,6 +45,8 @@ export default function WritingPage() {
   const [selectedPrompt, setSelectedPrompt] = useState<WritingPrompt | null>(null);
   const [essay, setEssay] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<Submission | null>(null);
@@ -61,6 +64,7 @@ export default function WritingPage() {
 
   useEffect(() => {
     async function loadData() {
+      setLoadError(null);
       try {
         const [promptsRes, submissionsRes] = await Promise.all([
           fetch("/api/writing/prompts"),
@@ -70,7 +74,9 @@ export default function WritingPage() {
         if (!promptsRes.ok) {
           if (promptsRes.status === 401) router.push("/login");
           if (promptsRes.status === 403) router.push("/student");
-          setIsLoading(false);
+          if (promptsRes.status !== 401 && promptsRes.status !== 403) {
+            setLoadError("Topik menulis gagal dimuat. Periksa koneksi Anda lalu coba lagi.");
+          }
           return;
         }
 
@@ -87,6 +93,7 @@ export default function WritingPage() {
         setSubmissions(mappedSubmissions);
       } catch (err) {
         console.error("Failed to load writing data:", err);
+        setLoadError("Topik menulis gagal dimuat. Periksa koneksi Anda lalu coba lagi.");
       } finally {
         setIsLoading(false);
       }
@@ -98,6 +105,7 @@ export default function WritingPage() {
   async function handleSubmit() {
     if (!selectedPrompt || wordCount < selectedPrompt.minWords) return;
 
+    setActionError(null);
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/writing/submit", {
@@ -111,7 +119,7 @@ export default function WritingPage() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Gagal mengirimkan esai.");
+        setActionError(errorData.error || "Gagal mengirimkan esai. Silakan coba lagi.");
         setIsSubmitting(false);
         return;
       }
@@ -120,7 +128,7 @@ export default function WritingPage() {
       const submissionId = data.submission?.id;
 
       if (!submissionId) {
-        alert("Gagal memproses ID pengiriman.");
+        setActionError("Pengiriman berhasil diterima, tetapi ID evaluasi tidak tersedia. Silakan cek Riwayat.");
         setIsSubmitting(false);
         return;
       }
@@ -131,7 +139,7 @@ export default function WritingPage() {
         pollCount += 1;
         if (pollCount > 15) {
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          alert("Evaluasi AI membutuhkan waktu lebih lama. Hasil akan muncul di tab Riwayat setelah selesai.");
+          setActionError("Evaluasi AI membutuhkan waktu lebih lama. Hasil Anda tetap tersimpan dan akan muncul di tab Riwayat setelah selesai.");
           setIsSubmitting(false);
           return;
         }
@@ -167,7 +175,7 @@ export default function WritingPage() {
                 }
               } else if (sub.status === "FAILED") {
                 if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                alert("Evaluasi AI gagal. Silakan coba lagi.");
+                setActionError("Evaluasi AI gagal memproses esai ini. Silakan coba lagi.");
                 setIsSubmitting(false);
               }
             }
@@ -179,6 +187,7 @@ export default function WritingPage() {
 
     } catch (err) {
       console.error("Submit essay error:", err);
+      setActionError("Terjadi kesalahan koneksi saat mengirim esai. Silakan coba lagi.");
       setIsSubmitting(false);
     }
   }
@@ -270,6 +279,18 @@ export default function WritingPage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 px-6 py-12 dark:bg-gray-950">
+        <main className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center">
+          <FeedbackBanner tone="error" title="Writing Practice tidak tersedia" actionLabel="Coba lagi" onAction={() => window.location.reload()}>
+            {loadError}
+          </FeedbackBanner>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col font-inter">
       {/* Header */}
@@ -303,7 +324,7 @@ export default function WritingPage() {
               <span className="material-symbols-outlined text-lg">history</span>
               <span className="hidden sm:inline">Riwayat</span>
             </button>
-            <Link href="/student" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+            <Link href="/student" aria-label="Kembali ke dashboard" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
               <span className="material-symbols-outlined text-2xl">close</span>
             </Link>
           </div>
@@ -377,6 +398,11 @@ export default function WritingPage() {
         {/* Essay writing interface */}
         {view === "write" && selectedPrompt && !showResult && (
           <div className="max-w-4xl mx-auto space-y-6">
+            {actionError && (
+              <FeedbackBanner tone="error" title="Pengiriman belum selesai">
+                {actionError}
+              </FeedbackBanner>
+            )}
             <button
               onClick={resetAndGoBack}
               disabled={isSubmitting}

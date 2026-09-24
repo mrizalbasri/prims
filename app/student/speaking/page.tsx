@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import ReadAlongPlayer from "@/components/student/speaking/ReadAlongPlayer";
+import FeedbackBanner from "@/components/student/FeedbackBanner";
 
 interface SpeechRecognitionInstance {
   continuous: boolean;
@@ -63,6 +64,8 @@ export default function SpeakingPage() {
   const [selectedScenario, setSelectedScenario] = useState<SpeakingScenario | null>(null);
   const [transcript, setTranscript] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -127,15 +130,15 @@ export default function SpeakingPage() {
         rec.onerror = (event: { error: string }) => {
           console.error("Speech recognition error:", event.error);
           setIsRecording(false);
-          if (event.error === 'not-allowed') {
-            alert("Akses mikrofon ditolak. Silakan aktifkan izin mikrofon pada browser Anda di sebelah kiri alamat URL (ikon gembok/pengaturan).");
-          } else if (event.error === 'no-speech') {
-            alert("Tidak ada suara yang terdeteksi. Silakan coba berbicara lebih dekat ke mikrofon atau berbicara lebih keras.");
-          } else if (event.error === 'audio-capture') {
-            alert("Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon Anda terhubung dengan benar dan aktif.");
-          } else {
-            alert(`Gagal merekam suara: ${event.error}. Silakan coba lagi atau ketik jawaban langsung sebagai alternatif.`);
-          }
+          setActionError(
+            event.error === "not-allowed"
+              ? "Akses mikrofon ditolak. Aktifkan izin mikrofon browser atau gunakan input transkrip manual."
+              : event.error === "no-speech"
+                ? "Tidak ada suara yang terdeteksi. Coba berbicara lebih dekat atau gunakan input manual."
+                : event.error === "audio-capture"
+                  ? "Perangkat mikrofon tidak terdeteksi. Pastikan mikrofon terhubung dan aktif."
+                  : `Gagal merekam suara (${event.error}). Silakan coba lagi atau ketik jawaban langsung.`
+          );
         };
 
         rec.onend = () => {
@@ -161,6 +164,7 @@ export default function SpeakingPage() {
 
   useEffect(() => {
     async function loadData() {
+      setLoadError(null);
       try {
         const [scenariosRes, sessionsRes] = await Promise.all([
           fetch("/api/speaking/scenarios"),
@@ -170,7 +174,9 @@ export default function SpeakingPage() {
         if (!scenariosRes.ok) {
           if (scenariosRes.status === 401) router.push("/login");
           if (scenariosRes.status === 403) router.push("/student");
-          setIsLoading(false);
+          if (scenariosRes.status !== 401 && scenariosRes.status !== 403) {
+            setLoadError("Skenario speaking gagal dimuat. Periksa koneksi Anda lalu coba lagi.");
+          }
           return;
         }
 
@@ -187,6 +193,7 @@ export default function SpeakingPage() {
         setSessions(mappedSessions);
       } catch (err) {
         console.error("Failed to load speaking data:", err);
+        setLoadError("Skenario speaking gagal dimuat. Periksa koneksi Anda lalu coba lagi.");
       } finally {
         setIsLoading(false);
       }
@@ -212,6 +219,7 @@ export default function SpeakingPage() {
   async function handleSubmit() {
     if (!selectedScenario || (!transcript.trim() && !audioUrlState)) return;
 
+    setActionError(null);
     // Auto-stop mic before submitting
     if (isRecording) await stopRecording();
 
@@ -230,7 +238,7 @@ export default function SpeakingPage() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Gagal mengirimkan latihan berbicara.");
+        setActionError(errorData.error || "Gagal mengirimkan latihan berbicara. Silakan coba lagi.");
         setIsSubmitting(false);
         return;
       }
@@ -239,7 +247,7 @@ export default function SpeakingPage() {
       const sessionId = data.session?.id;
 
       if (!sessionId) {
-        alert("Gagal memproses ID sesi.");
+        setActionError("Pengiriman diterima, tetapi ID evaluasi tidak tersedia. Silakan cek Riwayat.");
         setIsSubmitting(false);
         return;
       }
@@ -277,7 +285,7 @@ export default function SpeakingPage() {
                 }
               } else if (s.status === "FAILED") {
                 if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                alert("Evaluasi AI gagal. Silakan coba lagi.");
+                setActionError("Evaluasi AI gagal memproses rekaman ini. Silakan coba lagi.");
                 setIsSubmitting(false);
               }
             }
@@ -289,12 +297,14 @@ export default function SpeakingPage() {
 
     } catch (err) {
       console.error("Submit speaking score error:", err);
+      setActionError("Terjadi kesalahan koneksi saat mengirim latihan. Silakan coba lagi.");
       setIsSubmitting(false);
     }
   }
 
   async function handleReadAlongSubmit(transcriptText: string, audioUrl: string | null, durationSec: number) {
     if (!selectedScenario || (!transcriptText.trim() && !audioUrl)) return;
+    setActionError(null);
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/speaking/submit", {
@@ -310,7 +320,7 @@ export default function SpeakingPage() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Gagal mengirimkan latihan membaca.");
+        setActionError(errorData.error || "Gagal mengirimkan latihan membaca. Silakan coba lagi.");
         setIsSubmitting(false);
         return;
       }
@@ -319,7 +329,7 @@ export default function SpeakingPage() {
       const sessionId = data.session?.id;
 
       if (!sessionId) {
-        alert("Gagal memproses ID sesi.");
+        setActionError("Pengiriman diterima, tetapi ID evaluasi tidak tersedia. Silakan cek Riwayat.");
         setIsSubmitting(false);
         return;
       }
@@ -365,7 +375,7 @@ export default function SpeakingPage() {
                 }
               } else if (s.status === "FAILED") {
                 if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                alert("Evaluasi AI gagal. Silakan coba lagi.");
+                setActionError("Evaluasi AI gagal memproses latihan membaca ini. Silakan coba lagi.");
                 setIsSubmitting(false);
               }
             }
@@ -377,6 +387,7 @@ export default function SpeakingPage() {
 
     } catch (err) {
       console.error("Submit read-along score error:", err);
+      setActionError("Terjadi kesalahan koneksi saat mengirim latihan membaca. Silakan coba lagi.");
       setIsSubmitting(false);
     }
   }
@@ -539,7 +550,9 @@ export default function SpeakingPage() {
         setIsRecording(true);
       } catch (err) {
         console.error("Failed to start MediaRecorder:", err);
-        if (!recognition) alert("Gagal mengakses mikrofon. Harap berikan izin mikrofon untuk merekam suara.");
+        if (!recognition) {
+          setActionError("Gagal mengakses mikrofon. Izinkan akses mikrofon browser atau gunakan input transkrip manual.");
+        }
       }
     } else if (isPaused) {
       // Resume
@@ -567,6 +580,18 @@ export default function SpeakingPage() {
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           <p className="font-hanken font-bold text-blue-600 dark:text-blue-400">Memuat Speaking Practice...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 px-6 py-12 dark:bg-gray-950">
+        <main className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center">
+          <FeedbackBanner tone="error" title="Speaking Practice tidak tersedia" actionLabel="Coba lagi" onAction={() => window.location.reload()}>
+            {loadError}
+          </FeedbackBanner>
+        </main>
       </div>
     );
   }
@@ -604,7 +629,7 @@ export default function SpeakingPage() {
               <span className="material-symbols-outlined text-lg">history</span>
               <span className="hidden sm:inline">Riwayat</span>
             </button>
-            <Link href="/student" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+            <Link href="/student" aria-label="Kembali ke dashboard" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
               <span className="material-symbols-outlined text-2xl">close</span>
             </Link>
           </div>
@@ -721,6 +746,11 @@ export default function SpeakingPage() {
             />
           ) : (
             <div className="max-w-4xl mx-auto space-y-6">
+              {actionError && (
+                <FeedbackBanner tone="error" title="Pengiriman belum selesai">
+                  {actionError}
+                </FeedbackBanner>
+              )}
               <button
                 onClick={resetAndGoBack}
                 className="flex items-center gap-2 text-gray-550 hover:text-gray-900 dark:hover:text-white transition-colors font-inter text-sm font-semibold cursor-pointer"

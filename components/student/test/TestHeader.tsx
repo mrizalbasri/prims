@@ -59,7 +59,7 @@ export default function TestHeader({
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Progress</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Progres</span>
               <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">{progress}%</span>
             </div>
 
