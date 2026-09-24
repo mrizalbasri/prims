@@ -21,9 +21,15 @@ export default function ScrollReveal({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let revealTimeout: number | undefined;
+
+    const reveal = () => {
+      revealTimeout = window.setTimeout(() => setIsVisible(true), delayMs);
+    };
+
     // If browser doesn't support IntersectionObserver, reveal immediately
     if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
-      setIsVisible(true);
+      reveal();
       return;
     }
 
@@ -32,7 +38,7 @@ export default function ScrollReveal({
       // If already in viewport on initial render, reveal immediately without scroll delay
       const rect = currentRef.getBoundingClientRect();
       if (rect.top < window.innerHeight && rect.bottom > 0) {
-        setIsVisible(true);
+        reveal();
         return;
       }
     }
@@ -41,9 +47,9 @@ export default function ScrollReveal({
       ([entry]) => {
         if (entry.isIntersecting) {
           if (delayMs > 0) {
-            setTimeout(() => setIsVisible(true), delayMs);
+            reveal();
           } else {
-            setIsVisible(true);
+            reveal();
           }
           // Once it's visible, we don't need to observe it anymore
           observer.unobserve(entry.target);
@@ -62,6 +68,9 @@ export default function ScrollReveal({
     return () => {
       if (currentRef) {
         observer.unobserve(currentRef);
+      }
+      if (revealTimeout !== undefined) {
+        window.clearTimeout(revealTimeout);
       }
     };
   }, [delayMs]);

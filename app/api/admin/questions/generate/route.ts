@@ -237,10 +237,11 @@ Output format must be a JSON object with a single key "questions" containing an 
           ]);
           responseText = result.response.text();
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Gemini API call failed:", err);
+        const message = err instanceof Error ? err.message : String(err);
         return NextResponse.json(
-          { error: `Gagal memproses audio dengan Gemini: ${err.message || err}. Silakan gunakan opsi 'Ketik Naskah'.` },
+          { error: `Gagal memproses audio dengan Gemini: ${message}. Silakan gunakan opsi 'Ketik Naskah'.` },
           { status: 500 }
         );
       }
@@ -358,10 +359,11 @@ Output format must be a JSON object with a single key "questions" containing an 
           }
           responseText = await callMiniMax(prompt, minimaxKey, minimaxBaseUrl, minimaxModel);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`${activeProvider} API call failed:`, err);
+        const message = err instanceof Error ? err.message : String(err);
         return NextResponse.json(
-          { error: `Gagal membuat soal menggunakan ${activeProvider}: ${err.message || err}` },
+          { error: `Gagal membuat soal menggunakan ${activeProvider}: ${message}` },
           { status: 500 }
         );
       }

@@ -22,6 +22,18 @@ type SessionStats = {
   streak: number;
 };
 
+type VocabularyCardApi = {
+  id: string;
+  term: string;
+  meaning: string;
+  exampleSentence?: string | null;
+  difficulty: "EASY" | "MEDIUM" | "HARD";
+  progress?: {
+    repetitionCount?: number;
+    lastReviewedAt?: string | null;
+  } | null;
+};
+
 export default function VocabularyPage() {
   const router = useRouter();
   const [cards, setCards] = useState<VocabularyCard[]>([]);
@@ -63,13 +75,13 @@ export default function VocabularyPage() {
       }
 
       const data = await res.json();
-      const mappedCards = (data.cards || []).map((card: any) => ({
+      const mappedCards: VocabularyCard[] = (data.cards as VocabularyCardApi[] || []).map((card) => ({
         id: card.id,
         word: card.term,
         definition: card.meaning,
         example: card.exampleSentence || "",
-        level: card.difficulty === 'HARD' ? 'Advanced' :
-               card.difficulty === 'MEDIUM' ? 'Intermediate' : 'Beginner',
+        level: card.difficulty === 'HARD' ? 'Advanced' as const :
+               card.difficulty === 'MEDIUM' ? 'Intermediate' as const : 'Beginner' as const,
         reviewCount: card.progress?.repetitionCount || 0,
         lastReviewed: card.progress?.lastReviewedAt || null,
         nextReview: null

@@ -18,10 +18,13 @@ export default function Hero() {
   const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => {
-    setMounted(true)
+    const mountTimeout = window.setTimeout(() => setMounted(true), 0)
     const handleScroll = () => setIsScrolled(window.scrollY > 50)
     window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
+    return () => {
+      window.clearTimeout(mountTimeout)
+      window.removeEventListener('scroll', handleScroll)
+    }
   }, [])
 
   return (

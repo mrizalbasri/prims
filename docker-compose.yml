@@ -24,7 +24,7 @@ services:
       - DEBUG=False
       - HOST=0.0.0.0
       - PORT=8000
-      - INTERNAL_API_KEY=${AI_ENGINE_INTERNAL_KEY:-prism_internal_secret_change_me}
+      - INTERNAL_API_KEY=${AI_ENGINE_INTERNAL_KEY:?AI_ENGINE_INTERNAL_KEY must be set}
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
     restart: unless-stopped
 

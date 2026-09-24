@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 
 type QuestionRow = {
@@ -48,11 +48,7 @@ export default function QuestionFormModal({
   initialAudioUrl = "",
   initialDifficulty = "EASY",
 }: QuestionFormModalProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [mounted] = useState(() => typeof window !== "undefined");
 
   const [formSectionType, setFormSectionType] = useState<"VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING">(
     editingQuestion ? (editingQuestion.sectionType as "VOCABULARY" | "GRAMMAR" | "LISTENING" | "READING") : (fixedSection || "VOCABULARY")

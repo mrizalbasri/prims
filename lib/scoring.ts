@@ -251,7 +251,7 @@ async function runGeminiScoringWithFallback(
     const messages = [
       {
         role: "user",
-        content: [] as any[]
+        content: [] as unknown[]
       }
     ];
 

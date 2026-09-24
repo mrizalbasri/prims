@@ -30,10 +30,14 @@ async function verifyJwt(token: string, secret: string) {
       ['verify']
     );
 
+    const signatureBytes = base64UrlDecode(signature);
+    const signatureBuffer = new ArrayBuffer(signatureBytes.byteLength);
+    new Uint8Array(signatureBuffer).set(signatureBytes);
+
     const verified = await crypto.subtle.verify(
       'HMAC',
       key,
-      base64UrlDecode(signature) as any,
+      signatureBuffer,
       encoder.encode(`${header}.${payload}`)
     );
 

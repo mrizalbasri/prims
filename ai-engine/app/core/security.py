@@ -9,11 +9,10 @@ async def verify_internal_api_key(
     api_key: str = Security(api_key_header),
 ) -> bool:
     """Validate internal API key for communication between Next.js and AI Engine."""
-    # Allow bypass in local development if explicitly configured
-    if not settings.INTERNAL_API_KEY:
+    if not settings.INTERNAL_API_KEY and settings.ENVIRONMENT.lower() == "development":
         return True
 
-    if not api_key or api_key != settings.INTERNAL_API_KEY:
+    if not api_key or not settings.INTERNAL_API_KEY or api_key != settings.INTERNAL_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden: Invalid or missing internal API key",

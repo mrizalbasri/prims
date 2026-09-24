@@ -1,13 +1,15 @@
 # Gunakan Node.js 22 sesuai permintaan package prisma
 FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
 # Install dependencies
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json package-lock.json ./
-# Gunakan npm install karena lockfile Anda tidak sinkron
-RUN npm install
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Rebuild the source code
 FROM base AS builder
@@ -17,10 +19,14 @@ COPY . .
 
 # Environment variable untuk Prisma
 ENV PRISMA_CLIENT_ENGINE_TYPE=library
+# Next.js imports Prisma while collecting route configuration during the build.
+# The runtime database URL is still supplied by the deployment environment.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ENV JWT_SECRET="build-only-placeholder"
 
 # Generate Prisma Client dan Build
-RUN npx prisma generate
-RUN npm run build
+RUN pnpm prisma generate
+RUN pnpm build
 
 # Production image
 FROM base AS runner

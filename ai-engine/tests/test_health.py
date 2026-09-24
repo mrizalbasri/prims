@@ -11,6 +11,10 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
+def test_health_endpoints():
+    asyncio.run(run_tests())
+
+
 
 async def run_tests():
     transport = ASGITransport(app=app)

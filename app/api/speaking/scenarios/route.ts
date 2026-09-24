@@ -46,6 +46,11 @@ const DEFAULT_READ_ALONG_SCENARIOS = [
   }
 ];
 
+type ScenarioRubric = {
+  isReadAlong: boolean;
+  targetText: string;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUserFromRequest(request);
@@ -69,10 +74,10 @@ export async function GET(request: NextRequest) {
           data: {
             title: scenario.title,
             description: scenario.description,
-            type: scenario.type as any,
-            level: scenario.level as any,
+            type: scenario.type as SpeakingScenarioType,
+            level: scenario.level as ProficiencyLevel,
             prompts: scenario.prompts,
-            rubric: scenario.rubric as any,
+            rubric: scenario.rubric,
           }
         });
       }
@@ -114,7 +119,7 @@ export async function GET(request: NextRequest) {
     });
 
     const scenariosWithStats = scenarios.map((scenario: SpeakingScenario) => {
-      const rubricObj = scenario.rubric as any;
+      const rubricObj = scenario.rubric as ScenarioRubric | null;
       return {
         id: scenario.id,
         title: scenario.title,
