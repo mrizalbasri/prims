@@ -4,8 +4,13 @@ import wave
 from pathlib import Path
 from typing import Dict, List, Optional
 import httpx
-from piper import PiperVoice
-from piper.config import SynthesisConfig
+
+try:
+    from piper import PiperVoice
+    from piper.config import SynthesisConfig
+except ImportError:  # Piper is optional for health and question-catalog endpoints.
+    PiperVoice = None  # type: ignore[assignment,misc]
+    SynthesisConfig = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger("prism_ai_engine.audio")
 
@@ -96,6 +101,8 @@ async def ensure_voice_downloaded(voice_name: str) -> tuple[Path, Path]:
 
 async def get_or_load_voice(voice_name: str) -> PiperVoice:
     """Retrieve cached PiperVoice or load it from disk."""
+    if PiperVoice is None:
+        raise RuntimeError("Piper TTS is not installed; install ai-engine requirements to use audio endpoints")
     if voice_name in _loaded_voices:
         return _loaded_voices[voice_name]
 
