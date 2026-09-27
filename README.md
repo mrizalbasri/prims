@@ -90,8 +90,11 @@ prism/
 │   ├── seed.ts               # Seeder utama
 │   └── seed-phase2.ts        # Seeder fase 2
 ├── public/                   # Asset statis
-├── SETUP.md                  # Setup detail
-└── PRISM_PRD_v2.md           # Product requirements
+├── docs/
+│   ├── guides/               # Setup and operational guides
+│   ├── product/              # Product requirements
+│   ├── architecture/         # Architecture and codebase notes
+│   └── prototypes/            # Prototype specifications
 ```
 
 ---
@@ -194,8 +197,8 @@ Jika kamu ingin menstabilkan dulu sebelum production, fokuskan perbaikan pada:
 
 ## Dokumentasi Tambahan
 
-- Setup detail: [`SETUP.md`](./SETUP.md)
-- Product requirements: [`PRISM_PRD_v2.md`](./PRISM_PRD_v2.md)
+- Setup detail: [`SETUP.md`](./docs/guides/SETUP.md)
+- Product requirements: [`PRISM_PRD_v2.md`](./docs/product/PRISM_PRD_v2.md)
 
 ---
 

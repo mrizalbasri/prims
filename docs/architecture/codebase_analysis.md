@@ -20,8 +20,8 @@ Berikut adalah daftar file utama proyek yang telah dipelajari beserta peran fung
 
 ### A. Konfigurasi & Setup Proyek
 *   [package.json](file:///d:/Coding/prism/package.json): Mendefinisikan dependencies utama seperti `@google/generative-ai`, `@prisma/client`, `bcryptjs`, `jsonwebtoken`, `zod`, dan devDependencies seperti `tailwindcss` v4, `eslint` v9, dan `tsx`.
-*   [SETUP.md](file:///d:/Coding/prism/SETUP.md): Menyediakan panduan inisialisasi server, variabel lingkungan (.env), skema migrasi database, dan daftar prioritas pengembangan Fase 1 (MVP).
-*   [PRISM_PRD_v2.md](file:///d:/Coding/prism/PRISM_PRD_v2.md): Dokumen Product Requirements (PRD) yang merinci model bisnis freemium, pembagian modul tes (Vocabulary 20%, Grammar 20%, Reading 25%, Writing 20%, Speaking 15%), target pengguna, dan peta jalan pengembangan (Fase 1 hingga Fase 4).
+*   [SETUP.md](file:///d:/Coding/prism/docs/guides/SETUP.md): Menyediakan panduan inisialisasi server, variabel lingkungan (.env), skema migrasi database, dan daftar prioritas pengembangan Fase 1 (MVP).
+*   [PRISM_PRD_v2.md](file:///d:/Coding/prism/docs/product/PRISM_PRD_v2.md): Dokumen Product Requirements (PRD) yang merinci model bisnis freemium, pembagian modul tes (Vocabulary 20%, Grammar 20%, Reading 25%, Writing 20%, Speaking 15%), target pengguna, dan peta jalan pengembangan (Fase 1 hingga Fase 4).
 
 ### B. Skema Database & Seeder (`prisma/`)
 *   [prisma/schema.prisma](file:///d:/Coding/prism/prisma/schema.prisma): Model data relasional PostgreSQL. Model-model penting meliputi:
@@ -50,7 +50,7 @@ Berikut adalah daftar file utama proyek yang telah dipelajari beserta peran fung
 *   [app/api/student/history/route.ts](file:///d:/Coding/prism/app/api/student/history/route.ts): Handler backend untuk mengambil seluruh riwayat `TestAttempt` yang berstatus `COMPLETED` milik mahasiswa secara kronologis.
 
 ### E. Dokumentasi Tambahan Obsidian (`docs/`)
-*   [[progress_tracking_and_retake_comparison.md|Progress Tracking & Retake Comparison]]: Dokumentasi arsitektur, JSON schema API `/api/student/history`, dan komponen visualisasi perkembangan mahasiswa.
+*   [[progress_tracking_and_retake_comparison|Progress Tracking & Retake Comparison]]: Dokumentasi arsitektur, JSON schema API `/api/student/history`, dan komponen visualisasi perkembangan mahasiswa.
 
 ---
 
@@ -76,3 +76,93 @@ Sebelum rilis ke tahap produksi, beberapa error linting berikut terdeteksi dan p
 3.  **Penggunaan tipe `any` (`scoring.ts` & `proxy.ts`):**
     *   Error: TypeScript strict mode melarang penggunaan tipe `any`.
     *   Saran Solusi: Deklarasikan tipe yang eksplisit untuk respons API Gemini/Proxy.
+
+---
+
+## 5. Spec Refactor Struktur File Besar
+
+### Tujuan
+
+Meningkatkan maintainability modul student dan admin yang berukuran besar
+tanpa mengubah route, kontrak API, perilaku database, atau perilaku pengguna.
+
+### Scope
+
+Refactor mencakup:
+
+- Halaman student untuk speaking, writing, dan vocabulary.
+- Komponen admin untuk result drawer, question form, dan questions tab.
+- Cleanup kecil yang langsung terkait, seperti import tidak terpakai, helper lokal
+  yang duplikat, dan wiring state yang redundant.
+
+Tidak termasuk:
+
+- Fitur produk baru.
+- Perubahan schema Prisma atau database.
+- Perubahan response API.
+- Perubahan authentication atau authorization.
+- Redesign visual.
+- Perubahan pada security ujian yang sudah diperbaiki.
+
+### Arsitektur yang Dipilih
+
+Page tetap bertanggung jawab atas route-level coordination, authentication guard,
+data loading, dan navigation. Bagian UI yang kompleks dipindahkan ke komponen
+terfokus di folder domain yang sudah ada:
+
+- `components/student/speaking/`
+- `components/student/writing/`
+- `components/student/vocabulary/`
+- `components/admin/`
+
+Stateful behavior yang reusable dipindahkan ke custom hook jika boundary
+komponen menjadi lebih jelas. Transformasi dan validasi murni tetap berada di
+helper domain atau `lib/` jika digunakan oleh beberapa caller.
+
+### Urutan Implementasi
+
+1. Pecah halaman student speaking dan logic session.
+2. Jalankan validasi speaking.
+3. Pecah halaman student writing dan logic submission.
+4. Pecah halaman student vocabulary dan logic review/session.
+5. Jalankan validasi learning flow.
+6. Pecah bagian-bagian admin result drawer.
+7. Pecah bagian-bagian admin question form.
+8. Pecah bagian-bagian admin questions table/filter.
+9. Jalankan test, lint, build, dan `git diff --check` lengkap.
+
+Setiap tahap harus tetap buildable dan sebaiknya menjadi commit kecil terpisah
+agar perubahan dapat direview dan di-rollback dengan aman.
+
+### Error Handling dan Behavior
+
+Loading, empty, error, dan submission state yang sudah ada harus tetap terlihat.
+Error API tidak boleh diganti dengan silent fallback. Logic server-only dan
+secret tidak boleh dipindahkan ke client component.
+
+### Keputusan Testing
+
+Setiap kelompok domain wajib divalidasi dengan:
+
+- Test Vitest yang sudah ada.
+- ESLint.
+- Next.js production build.
+- `git diff --check`.
+
+Test baru hanya ditambahkan jika extraction menghasilkan helper murni yang stabil
+atau ada behavior penting yang sebelumnya belum terlindungi. Test memeriksa
+behavior eksternal, bukan detail implementasi komponen.
+
+### Kriteria Selesai
+
+- File target tidak lagi menjadi monolithic page/component jika bagiannya dapat
+  dipahami dan diuji secara mandiri.
+- Route dan kontrak API tidak berubah.
+- Behavior loading, success, empty, error, dan submit tetap sama.
+- Test, lint, dan production build lulus di setiap tahap.
+- Tidak ada file generated atau perubahan tidak terkait yang masuk branch.
+
+Related notes:
+
+- [[progress_tracking_and_retake_comparison]]
+- [[2026-09-23-core-quality-repair-design]]
