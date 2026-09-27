@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
 import { scoreWritingWithAI, scoreSpeakingWithAI, finalizeTestResults, calculateWeightedScore } from '@/lib/scoring';
 import { enqueueAIScoring } from '@/lib/queue';
+import { findExpiredSection, isSubmissionLocked } from '@/lib/test-security';
+import { getTestSettings } from '@/lib/settings';
 
 interface SubmitTestRequest {
   testAttemptId?: string;
@@ -68,12 +70,51 @@ export async function POST(request: NextRequest) {
 
     testAttemptId = testAttempt.id;
 
-    // Check if already submitted
-    if (testAttempt.status === TestAttemptStatus.SUBMITTED || 
-        testAttempt.status === TestAttemptStatus.COMPLETED) {
+    // Reject duplicate or already-finalized submissions.
+    if (isSubmissionLocked(testAttempt.status)) {
       return NextResponse.json(
         { error: 'Test already submitted' },
         { status: 409 }
+      );
+    }
+
+    const settings = await getTestSettings();
+    const expiredSection = findExpiredSection(
+      testAttempt.sectionAttempts,
+      settings.durations,
+    );
+    if (expiredSection) {
+      await prisma.sectionAttempt.update({
+        where: { id: expiredSection.id },
+        data: {
+          status: SectionStatus.TIMED_OUT,
+          endTime: new Date(),
+        },
+      });
+
+      return NextResponse.json(
+        { error: 'Waktu pengerjaan seksi ini telah habis.', code: 'TIMED_OUT' },
+        { status: 403 },
+      );
+    }
+
+    // Claim the attempt atomically so concurrent submit requests cannot both score it.
+    const claimResult = await prisma.testAttempt.updateMany({
+      where: {
+        id: testAttemptId,
+        userId: user.id,
+        status: TestAttemptStatus.IN_PROGRESS,
+      },
+      data: {
+        status: TestAttemptStatus.PROCESSING,
+        submittedAt: new Date(),
+      },
+    });
+
+    if (claimResult.count !== 1) {
+      return NextResponse.json(
+        { error: 'Test already submitted' },
+        { status: 409 },
       );
     }
 
@@ -89,15 +130,6 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-
-    // Update test attempt status
-    await prisma.testAttempt.update({
-      where: { id: testAttemptId },
-      data: {
-        status: TestAttemptStatus.PROCESSING,
-        submittedAt: new Date(),
-      },
-    });
 
     // Create audit log
     await createAuditLog(
