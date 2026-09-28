@@ -5,38 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import FeedbackBanner from "@/components/student/FeedbackBanner";
-
-type WritingPrompt = {
-  id: string;
-  title: string;
-  prompt: string;
-  level: "Beginner" | "Intermediate" | "Advanced";
-  minWords: number;
-};
-
-type FeedbackObject = {
-  grammar?: string;
-  vocabulary?: string;
-  content?: string;
-  organization?: string;
-  suggestions?: string[];
-};
-
-type Submission = {
-  id: string;
-  score: number;
-  scores?: {
-    grammar: number;
-    clarity: number;
-    structure: number;
-    overall: number;
-  };
-  feedback: string | FeedbackObject | null;
-  submittedAt: string;
-  prompt: {
-    title: string;
-  };
-};
+import WritingFeedback from "@/components/student/writing/WritingFeedback";
+import WritingHistory from "@/components/student/writing/WritingHistory";
+import WritingPromptList from "@/components/student/writing/WritingPromptList";
+import type { Submission, WritingPrompt } from "@/components/student/writing/types";
 
 export default function WritingPage() {
   const router = useRouter();
@@ -192,66 +164,6 @@ export default function WritingPage() {
     }
   }
 
-  function renderFeedback(feedback: string | FeedbackObject | null | undefined) {
-    if (!feedback) return null;
-    
-    // If it's a string, just render it directly
-    if (typeof feedback === "string") {
-      return (
-        <div className="font-inter text-sm text-gray-750 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750 shadow-sm">
-          {feedback}
-        </div>
-      );
-    }
-
-    // Otherwise, assume it's the structured feedback object
-    const categories: { key: keyof Omit<FeedbackObject, "suggestions">; label: string; icon: string; color: string; bg: string }[] = [
-      { key: "grammar", label: "Grammar & Structure", icon: "spellcheck", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10" },
-      { key: "vocabulary", label: "Vocabulary Usage", icon: "style", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10" },
-      { key: "content", label: "Content & Relevance", icon: "menu_book", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-500/10" },
-      { key: "organization", label: "Coherence & Organization", icon: "schema", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-500/10" }
-    ];
-
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {categories.map((cat) => {
-            const explanation = feedback[cat.key];
-            if (!explanation) return null;
-            return (
-              <div key={cat.key} className="bg-white dark:bg-gray-850 p-5 rounded-2xl border border-gray-150 dark:border-gray-750 shadow-sm space-y-3 text-left">
-                <div className="flex items-center gap-2">
-                  <span className={`material-symbols-outlined p-1.5 rounded-lg text-sm ${cat.color} ${cat.bg}`}>{cat.icon}</span>
-                  <h4 className="font-hanken text-sm font-bold text-gray-900 dark:text-white">{cat.label}</h4>
-                </div>
-                <p className="font-inter text-xs text-gray-650 dark:text-gray-300 leading-relaxed">
-                  {explanation}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-
-        {feedback.suggestions && Array.isArray(feedback.suggestions) && feedback.suggestions.length > 0 && (
-          <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 rounded-2xl p-6 space-y-3 text-left">
-            <h4 className="font-hanken text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
-              <span className="material-symbols-outlined">lightbulb</span>
-              Rekomendasi Perbaikan
-            </h4>
-            <ul className="space-y-2">
-              {feedback.suggestions.map((suggestion: string, idx: number) => (
-                <li key={idx} className="flex gap-2.5 items-start font-inter text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                  <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">check_circle</span>
-                  <span>{suggestion}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   function startNewEssay(prompt: WritingPrompt) {
     setSelectedPrompt(prompt);
     setEssay("");
@@ -332,67 +244,8 @@ export default function WritingPage() {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">
-        {/* Prompts list view */}
         {view === "prompts" && (
-          <div className="space-y-8">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Latihan Menulis Esai</span>
-              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Writing Prompts</h1>
-              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
-                Pilih salah satu topik penulisan akademis di bawah untuk berlatih mengekspresikan gagasan dan dapatkan feedback AI.
-              </p>
-            </div>
-
-            {prompts.length === 0 ? (
-              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
-                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">draw</span>
-                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Topik Penulisan</h2>
-                <p className="font-inter text-sm text-gray-400 dark:text-gray-550 max-w-xs mx-auto">
-                  Prompt menulis belum terisi dalam database saat ini.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {prompts.map((prompt) => (
-                  <div key={prompt.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-orange-500/40 transition-all flex flex-col justify-between group">
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          prompt.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
-                          prompt.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
-                          "bg-red-50 text-red-600 dark:bg-red-500/10"
-                        }`}>
-                          {prompt.level}
-                        </span>
-                        <span className="material-symbols-outlined text-orange-600">draw</span>
-                      </div>
-                      
-                      <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors">
-                        {prompt.title}
-                      </h3>
-                      <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
-                        {prompt.prompt}
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
-                      <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm">edit</span>
-                        Min. {prompt.minWords} kata
-                      </span>
-                      <button
-                        onClick={() => startNewEssay(prompt)}
-                        className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken text-xs font-bold px-4 py-2.5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
-                      >
-                        Mulai Menulis
-                        <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <WritingPromptList prompts={prompts} onStart={startNewEssay} />
         )}
 
         {/* Essay writing interface */}
@@ -526,7 +379,7 @@ export default function WritingPage() {
                   <span className="material-symbols-outlined text-orange-600">feedback</span>
                   Umpan Balik AI (Indonesia)
                 </h3>
-                {renderFeedback(result.feedback)}
+                <WritingFeedback feedback={result.feedback} />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 pt-2">
@@ -548,56 +401,11 @@ export default function WritingPage() {
           </div>
         )}
 
-        {/* History of submissions view */}
         {view === "history" && (
-          <div className="space-y-8">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Rekam Jejak Latihan</span>
-              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Riwayat Submission</h1>
-              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">Lihat seluruh esai yang pernah Anda ajukan beserta skor perkembangan yang diraih.</p>
-            </div>
-
-            {submissions.length === 0 ? (
-              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
-                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">history</span>
-                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Submission</h2>
-                <p className="font-inter text-sm text-gray-400 dark:text-gray-500 max-w-xs mx-auto mb-4">
-                  Selesaikan latihan menulis esai pertama Anda untuk melihat riwayat perkembangan di sini.
-                </p>
-                <div>
-                  <button
-                    onClick={() => setView("prompts")}
-                    className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken text-xs font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all cursor-pointer"
-                  >
-                    Cari Topik Menulis
-                    <span className="material-symbols-outlined">arrow_forward</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {submissions.map((sub) => (
-                  <div key={sub.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-md transition-all">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1 flex-1">
-                        <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">{sub.prompt.title}</h3>
-                        <p className="font-inter text-xs text-gray-450 dark:text-gray-500">
-                          Diserahkan pada {new Date(sub.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 border-l border-gray-100 dark:border-gray-800 pl-0 md:pl-6">
-                        <div className="text-center">
-                          <p className="font-mono text-3xl font-black text-orange-600 dark:text-orange-400">{sub.score}</p>
-                          <p className="font-inter text-[9px] uppercase font-bold text-gray-400 tracking-wider">Skor</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <WritingHistory
+            submissions={submissions}
+            onBrowse={() => setView("prompts")}
+          />
         )}
       </main>
     </div>

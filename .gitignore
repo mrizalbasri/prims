@@ -44,13 +44,9 @@ next-env.d.ts
 /app/generated/prisma
 
 
-.docs
 .codegraph
 
 # Internal documentation & AI configs
-/docs/
-PRISM_PRD_v2.md
-SETUP.md
 CLAUDE.md
 AGENTS.md
 

@@ -6,56 +6,15 @@ import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import ReadAlongPlayer from "@/components/student/speaking/ReadAlongPlayer";
 import FeedbackBanner from "@/components/student/FeedbackBanner";
-
-interface SpeechRecognitionInstance {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: (event: { resultIndex: number; results: { length: number; [index: number]: { isFinal: boolean; [index: number]: { transcript: string } } } }) => void;
-  onerror: (event: { error: string }) => void;
-  onend: () => void;
-  start: () => void;
-  stop: () => void;
-}
-
-type FeedbackObject = {
-  grammar?: string;
-  vocabulary?: string;
-  content?: string;
-  fluency?: string;
-  suggestions?: string[];
-};
-
-type SpeakingScenario = {
-  id: string;
-  title: string;
-  scenario: string;
-  level: "Beginner" | "Intermediate" | "Advanced";
-  duration: number;
-  description?: string;
-  isReadAlong?: boolean;
-  targetText?: string;
-};
-
-type Session = {
-  id: string;
-  score: number;
-  scores?: {
-    fluency: number;
-    pronunciation: number;
-    grammar: number;
-    overall: number;
-  };
-  feedback: string | FeedbackObject | null;
-  submittedAt: string;
-  scenario: {
-    title: string;
-  };
-};
-
-type SessionApi = Partial<Session> & {
-  overallScore?: number;
-};
+import SpeakingFeedback from "@/components/student/speaking/SpeakingFeedback";
+import SpeakingHistory from "@/components/student/speaking/SpeakingHistory";
+import SpeakingScenarioList from "@/components/student/speaking/SpeakingScenarioList";
+import type {
+  Session,
+  SessionApi,
+  SpeakingScenario,
+  SpeechRecognitionInstance,
+} from "@/components/student/speaking/types";
 
 export default function SpeakingPage() {
   const router = useRouter();
@@ -392,66 +351,6 @@ export default function SpeakingPage() {
     }
   }
 
-  function renderFeedback(feedback: string | FeedbackObject | null | undefined) {
-    if (!feedback) return null;
-    
-    // If it's a string, just render it directly
-    if (typeof feedback === "string") {
-      return (
-        <div className="font-inter text-sm text-gray-750 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-150 dark:border-gray-750 shadow-sm">
-          {feedback}
-        </div>
-      );
-    }
-
-    // Otherwise, assume it's the structured feedback object
-    const categories: { key: keyof Omit<FeedbackObject, "suggestions">; label: string; icon: string; color: string; bg: string }[] = [
-      { key: "grammar", label: "Grammar & Structure", icon: "spellcheck", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10" },
-      { key: "vocabulary", label: "Vocabulary Usage", icon: "style", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10" },
-      { key: "content", label: "Content & Relevance", icon: "menu_book", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-500/10" },
-      { key: "fluency", label: "Fluency & Coherence", icon: "graphic_eq", color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-500/10" }
-    ];
-
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {categories.map((cat) => {
-            const explanation = feedback[cat.key];
-            if (!explanation) return null;
-            return (
-              <div key={cat.key} className="bg-white dark:bg-gray-850 p-5 rounded-2xl border border-gray-150 dark:border-gray-750 shadow-sm space-y-3 text-left">
-                <div className="flex items-center gap-2">
-                  <span className={`material-symbols-outlined p-1.5 rounded-lg text-sm ${cat.color} ${cat.bg}`}>{cat.icon}</span>
-                  <h4 className="font-hanken text-sm font-bold text-gray-900 dark:text-white">{cat.label}</h4>
-                </div>
-                <p className="font-inter text-xs text-gray-650 dark:text-gray-300 leading-relaxed">
-                  {explanation}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-
-        {feedback.suggestions && Array.isArray(feedback.suggestions) && feedback.suggestions.length > 0 && (
-          <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 rounded-2xl p-6 space-y-3 text-left">
-            <h4 className="font-hanken text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
-              <span className="material-symbols-outlined">lightbulb</span>
-              Rekomendasi Perbaikan
-            </h4>
-            <ul className="space-y-2">
-              {feedback.suggestions.map((suggestion: string, idx: number) => (
-                <li key={idx} className="flex gap-2.5 items-start font-inter text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                  <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">check_circle</span>
-                  <span>{suggestion}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   function startNewPractice(scenario: SpeakingScenario) {
     setSelectedScenario(scenario);
     setTranscript("");
@@ -636,97 +535,13 @@ export default function SpeakingPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">        {/* Scenarios grid view */}
-        {view === "scenarios" && (
-          <div className="space-y-8">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Latihan Percakapan</span>
-              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Speaking Scenarios</h1>
-              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
-                Pilih salah satu skenario simulasi komunikasi dan mulailah melatih pengucapan, intonasi, dan kelancaran berbicara Anda dengan asisten AI.
-              </p>
-            </div>
-
-            {/* Sub-tab selection */}
-            <div className="flex border-b border-gray-200 dark:border-gray-800 gap-6 overflow-x-auto whitespace-nowrap scrollbar-none">
-              <button
-                onClick={() => setSubTab("conversation")}
-                className={`pb-3 font-hanken text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all flex-shrink-0 ${
-                  subTab === "conversation"
-                    ? "border-red-600 text-red-600 dark:text-red-400"
-                    : "border-transparent text-gray-450 hover:text-gray-700 dark:hover:text-gray-300"
-                }`}
-              >
-                Simulasi Percakapan
-              </button>
-              <button
-                onClick={() => setSubTab("read-along")}
-                className={`pb-3 font-hanken text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all flex-shrink-0 ${
-                  subTab === "read-along"
-                    ? "border-red-600 text-red-600 dark:text-red-400"
-                    : "border-transparent text-gray-450 hover:text-gray-700 dark:hover:text-gray-300"
-                }`}
-              >
-                Membaca Teks Berjalan
-              </button>
-            </div>
-
-            {scenarios.filter((s) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong).length === 0 ? (
-              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
-                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">mic</span>
-                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">
-                  {subTab === "read-along" ? "Belum Ada Teks Berjalan" : "Belum Ada Skenario"}
-                </h2>
-                <p className="font-inter text-sm text-gray-405 dark:text-gray-500 max-w-xs mx-auto">
-                  {subTab === "read-along"
-                    ? "Teks berjalan belum dimuat dalam sistem."
-                    : "Skenario berbicara lisan belum dimuat dalam sistem."}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {scenarios
-                  .filter((s) => subTab === "read-along" ? s.isReadAlong : !s.isReadAlong)
-                  .map((scenario) => (
-                    <div key={scenario.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-xl hover:border-red-500/40 transition-all flex flex-col justify-between group">
-                      <div className="space-y-4">
-                        <div className="flex items-start justify-between">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            scenario.level === "Advanced" ? "bg-green-50 text-green-600 dark:bg-green-500/10" :
-                            scenario.level === "Intermediate" ? "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10" :
-                            "bg-red-50 text-red-600 dark:bg-red-500/10"
-                          }`}>
-                            {scenario.level}
-                          </span>
-                          <span className="material-symbols-outlined text-red-600">mic</span>
-                        </div>
-                        
-                        <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white group-hover:text-red-600 transition-colors">
-                          {scenario.title}
-                        </h3>
-                        <p className="font-inter text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
-                          {scenario.scenario || scenario.description}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
-                        <span className="font-inter text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm">timer</span>
-                          Maks. {scenario.duration} detik
-                        </span>
-                        <button
-                          onClick={() => startNewPractice(scenario)}
-                          className="flex items-center gap-2 bg-red-600 hover:bg-red-750 text-white font-hanken text-xs font-bold px-4 py-2.5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
-                        >
-                          Mulai Praktik
-                          <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10">        {view === "scenarios" && (
+          <SpeakingScenarioList
+            scenarios={scenarios}
+            subTab={subTab}
+            onSubTabChange={setSubTab}
+            onStartPractice={startNewPractice}
+          />
         )}
         {/* Recording / Speaking Interface */}
         {view === "practice" && selectedScenario && !showResult && (
@@ -916,7 +731,7 @@ export default function SpeakingPage() {
                   <span className="material-symbols-outlined text-red-600">feedback</span>
                   Umpan Balik AI (Indonesia)
                 </h3>
-                {renderFeedback(result.feedback)}
+                <SpeakingFeedback feedback={result.feedback} />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 pt-2">
@@ -938,56 +753,11 @@ export default function SpeakingPage() {
           </div>
         )}
 
-        {/* History of sessions view */}
         {view === "history" && (
-          <div className="space-y-8">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Hasil Latihan Lisan</span>
-              <h1 className="font-hanken text-3xl font-extrabold text-gray-900 dark:text-white">Riwayat Sesi Speaking</h1>
-              <p className="font-inter text-sm text-gray-500 dark:text-gray-400">Tinjau seluruh rekaman dan transkrip skenario lisan yang telah dinilai AI.</p>
-            </div>
-
-            {sessions.length === 0 ? (
-              <div className="bg-white dark:bg-gray-850 rounded-3xl border-2 border-dashed border-gray-150 dark:border-gray-700 p-12 text-center space-y-4">
-                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600">history</span>
-                <h2 className="font-hanken text-lg font-bold text-gray-850 dark:text-white">Belum Ada Sesi Speaking</h2>
-                <p className="font-inter text-sm text-gray-400 dark:text-gray-500 max-w-xs mx-auto mb-4">
-                  Selesaikan latihan percakapan pertama Anda untuk melihat riwayat performa lisan di sini.
-                </p>
-                <div>
-                  <button
-                    onClick={() => setView("scenarios")}
-                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-hanken text-xs font-bold px-6 py-3 rounded-xl hover:shadow-lg transition-all cursor-pointer"
-                  >
-                    Cari Skenario Percakapan
-                    <span className="material-symbols-outlined">arrow_forward</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {sessions.map((session) => (
-                  <div key={session.id} className="bg-white dark:bg-gray-850 rounded-2xl border border-gray-150 dark:border-gray-700 p-6 hover:shadow-md transition-all">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1 flex-1">
-                        <h3 className="font-hanken text-lg font-bold text-gray-900 dark:text-white">{session.scenario.title}</h3>
-                        <p className="font-inter text-xs text-gray-450 dark:text-gray-555">
-                          Diselesaikan pada {new Date(session.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 border-l border-gray-100 dark:border-gray-800 pl-0 md:pl-6">
-                        <div className="text-center">
-                          <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">{session.score}</p>
-                          <p className="font-inter text-[9px] uppercase font-bold text-gray-400 tracking-wider">Skor</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <SpeakingHistory
+            sessions={sessions}
+            onBrowseScenarios={() => setView("scenarios")}
+          />
         )}
       </main>
     </div>

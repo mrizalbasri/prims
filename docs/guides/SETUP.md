@@ -222,5 +222,5 @@ pnpm prisma db push --force-reset
 ## Support
 
 For issues or questions, refer to:
-- [PRISM_PRD_v2.md](./PRISM_PRD_v2.md) - Product requirements
+- [PRISM_PRD_v2.md](../product/PRISM_PRD_v2.md) - Product requirements
 - [Phase 1 SRS](./docs/superpowers/specs/2026-06-12-prism-phase-1-mvp-srs.md) - Technical specifications
